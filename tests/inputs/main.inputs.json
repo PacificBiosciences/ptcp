@@ -1,0 +1,15 @@
+{
+  "puretarget_darkgenes.sample_sheet": "/pbi/flash/wrowell/projects/puretarget_darkgenes/tests/data/sample_sheet.tsv",
+  "puretarget_darkgenes.hifi_reads": [
+    "/pbi/flash/wrowell/projects/puretarget_darkgenes/tests/data/bams/m64263e_240517_211441.bc2017.reads.bam",
+    "/pbi/flash/wrowell/projects/puretarget_darkgenes/tests/data/bams/m64263e_240517_211441.bc2018.reads.bam",
+    "/pbi/flash/wrowell/projects/puretarget_darkgenes/tests/data/bams/m64263e_240517_211441.bc2019.reads.bam",
+    "/pbi/flash/wrowell/projects/puretarget_darkgenes/tests/data/bams/m64263e_240517_211441.bc2020.reads.bam"
+  ],
+  "puretarget_darkgenes.ref_fasta": "/pbi/flash/wrowell/projects/puretarget_darkgenes/tests/data/human_GRCh38_no_alt_analysis_set.fasta",
+  "puretarget_darkgenes.ref_index": "/pbi/flash/wrowell/projects/puretarget_darkgenes/tests/data/human_GRCh38_no_alt_analysis_set.fasta.fai",
+  "puretarget_darkgenes.pbaa_guide_bed": "/pbi/flash/wrowell/projects/puretarget_darkgenes/tests/data/guide_regions.bed",
+  "puretarget_darkgenes.pbaa_mask_bed": "/pbi/flash/wrowell/projects/puretarget_darkgenes/tests/data/masked_regions.bed",
+  "puretarget_darkgenes.trgt_bed": "/pbi/flash/wrowell/projects/puretarget_darkgenes/tests/data/FXN.PureTarget_repeat_expansion_panel.bed",
+  "puretarget_darkgenes.docker_smrttools": "quay.io/pacbio/smrttools@sha256:01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+}
