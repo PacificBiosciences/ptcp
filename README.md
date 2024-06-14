@@ -23,12 +23,7 @@
 | `String?` | `log_level` | default: `'INFO'` | `['DEBUG', 'INFO', 'WARN']` |
 | `String` | `docker_smrttools` | URI for Docker image or tarball | Default value will not be valid.  You must create the image yourself and override the default. |
 
-[^1]: The sample sheet is a 4 column headered TSV with fields `movie`, `barcode`, `sample_id`, `sex`.
-
-- `movie` - e.g., `m60000e_240517_211441` or `m8000e_240517_211441_s1`; currently unused
-- `barcode` - e.g., `bc2017--bc2017` (symmetrical) or `bc2017--bc2018` (asymmetrical); currently unused
-- `sample_id` - e.g., `sample1` or `sample2`; alphanumeric characters, dashes, and underscores only; used to look up sample sex
-- `sex` - e.g., `M`, `F`, or empty string; assumed to be `F` if empty string
+[^1]: The sample sheet is a 4 column headered TSV with fields `movie` (e.g., `m60000e_240517_211441`), `barcode` (e.g., `bc2017--bc2017`), `sample_id` (alphanumeric characters, dashes, and underscores only), `sex` (`M`, `F`, or null string, assumed to be `F`).
 
 [^2]: The pbaa guide bed file is a 4 column unheadered bed file with fields `chrom`, `start`, `end`, and `name` that is used to generate [pbaa guide sequences](https://github.com/PacificBiosciences/pbAA?tab=readme-ov-file#customizing-guide-sequences).  The `name` field is the guide name, following the format `sequence_name|group_name`.  Groups are similar sequences (e.g., paralogous sequences) that should be treated as a single target by pbaa.
 
