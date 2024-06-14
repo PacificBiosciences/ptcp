@@ -165,6 +165,7 @@ workflow dark_genes {
   }
 
   output {
+    File cluster_info      = cluster_by_groups.info
     File painted_bam       = merge_painted_bams.bam
     File painted_bam_bai   = merge_painted_bams.bam_bai
     File consensus_bam     = merge_consensus_bams.bam

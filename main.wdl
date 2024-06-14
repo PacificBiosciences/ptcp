@@ -166,6 +166,7 @@ workflow puretarget_darkgenes {
     File  report_target_enrichment                  = pbreports_target_enrichment_noamp.report
     File  report_puretarget                         = noamp_qc.report
 
+    Array[File] cluster_info       = dark_genes.cluster_info
     Array[File] painted_bams       = dark_genes.painted_bam
     Array[File] painted_bam_bais   = dark_genes.painted_bam_bai
     Array[File] consensus_bams     = dark_genes.consensus_bam
