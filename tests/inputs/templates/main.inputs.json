@@ -3,9 +3,13 @@
   "puretarget_darkgenes.hifi_reads": [
     "File"
   ],
+  "puretarget_darkgenes.fail_reads": [
+    "File"
+  ],
   "puretarget_darkgenes.ref_fasta": "File",
   "puretarget_darkgenes.ref_index": "File",
   "puretarget_darkgenes.pbaa_guide_bed": "File",
   "puretarget_darkgenes.pbaa_mask_bed": "File",
-  "puretarget_darkgenes.trgt_bed": "File"
+  "puretarget_darkgenes.trgt_bed": "File",
+  "puretarget_darkgenes.docker_smrttools": "String"
 }
