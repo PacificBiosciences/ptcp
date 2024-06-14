@@ -152,9 +152,9 @@ workflow puretarget_darkgenes {
 
     Array[Float] chry_frequency  = infer_chry.chry_frequency
 
-    Array[File] vcf                                 = trgt.vcf
-    Array[File] spanning_bam                        = trgt.spanning_bam
-    Array[File] spanning_index                      = trgt.spanning_index
+    Array[File] trgt_vcf                            = trgt.vcf
+    Array[File] trgt_spanning_bam                   = trgt.spanning_bam
+    Array[File] trgt_spanning_index                 = trgt.spanning_index
     Array[File] images_motifs_allele                = trgt.images_motifs_allele
     Array[File] images_meth_allele                  = trgt.images_meth_allele
     Array[File] images_motifs_waterfall             = trgt.images_motifs_waterfall
