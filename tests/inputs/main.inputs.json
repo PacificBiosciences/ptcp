@@ -8,6 +8,7 @@
   ],
   "puretarget_darkgenes.ref_fasta": "/pbi/flash/wrowell/projects/puretarget_darkgenes/tests/data/human_GRCh38_no_alt_analysis_set.fasta",
   "puretarget_darkgenes.ref_index": "/pbi/flash/wrowell/projects/puretarget_darkgenes/tests/data/human_GRCh38_no_alt_analysis_set.fasta.fai",
+  "puretarget_darkgenes.pbaa_params_json": "/pbi/flash/wrowell/projects/puretarget_darkgenes/tests/data/pbaa_parameters.json",
   "puretarget_darkgenes.pbaa_guide_bed": "/pbi/flash/wrowell/projects/puretarget_darkgenes/tests/data/guide_regions.bed",
   "puretarget_darkgenes.pbaa_mask_bed": "/pbi/flash/wrowell/projects/puretarget_darkgenes/tests/data/masked_regions.bed",
   "puretarget_darkgenes.trgt_bed": "/pbi/flash/wrowell/projects/puretarget_darkgenes/tests/data/FXN.PureTarget_repeat_expansion_panel.bed",

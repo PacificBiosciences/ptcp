@@ -1,6 +1,7 @@
 version 1.0
 
 import "./common.wdl" as Common
+import "./structs.wdl"
 
 workflow dark_genes {
   meta {
@@ -19,9 +20,13 @@ workflow dark_genes {
     File ref_index
     File ref_mmi
 
+    File pbaa_params
+
     String log_level        = "INFO"
     String docker_smrttools = "quay.io/pacbio/smrttools@sha256:01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
   }
+
+  PbaaParamsFile config = read_json(pbaa_params)  # !UnverifiedStruct
 
   call bam2hififastq {
     # extract hifi reads and convert to fastq
@@ -35,20 +40,30 @@ workflow dark_genes {
     # cluster reads by groups of guides, e.g. all F8_inv22 reads grouped together
     # we use very relaxed settings to include as many reads as possible
     input:
-      fastq                  = bam2hififastq.fastq,
-      fastq_index            = bam2hififastq.fastq_index,
-      guides                 = guides,
-      guide_indices          = guide_indices,
-      prefix                 = sample_name,
-      pile_size              = 100,
-      max_reads_per_guide    = 5000,
-      max_amplicon_size      = 15000,
-      min_cluster_frequency  = 0.001,
-      min_cluster_read_count = 2,
-      skip_chimera_detection = true,
-      skip_consensus         = true,
-      log_level              = "FATAL",
-      docker_smrttools       = docker_smrttools
+      fastq                   = bam2hififastq.fastq,
+      fastq_index             = bam2hififastq.fastq_index,
+      guides                  = guides,
+      guide_indices           = guide_indices,
+      prefix                  = sample_name,
+      filter                  = select_first([config.regions["cluster"].filter, 3]),
+      trim_ends               = select_first([config.regions["cluster"].trim_ends, 5]),
+      pile_size               = select_first([config.regions["cluster"].pile_size, 30]),
+      min_var_frequency       = select_first([config.regions["cluster"].min_var_frequency, 0.3]),
+      max_alignments_per_read = select_first([config.regions["cluster"].max_alignments_per_read, 1000]),
+      max_reads_per_guide     = select_first([config.regions["cluster"].max_reads_per_guide, 500]),
+      iterations              = select_first([config.regions["cluster"].iterations, 9]),
+      seed                    = select_first([config.regions["cluster"].seed, 1984]),
+      max_consensus_reads     = select_first([config.regions["cluster"].max_consensus_reads, 100]),
+      max_amplicon_size       = select_first([config.regions["cluster"].max_amplicon_size, 15000]),
+      min_read_qv             = select_first([config.regions["cluster"].min_read_qv, 20]),
+      off_target_groups       = config.regions["cluster"].off_target_groups,
+      min_cluster_frequency   = select_first([config.regions["cluster"].min_cluster_frequency, 0.1]),
+      min_cluster_read_count  = select_first([config.regions["cluster"].min_cluster_read_count, 5]),
+      max_uchime_score        = select_first([config.regions["cluster"].max_uchime_score, 1]),
+      skip_chimera_detection  = select_first([config.regions["cluster"].skip_chimera_detection, false]),
+      skip_consensus          = select_first([config.regions["cluster"].skip_consensus, false]),
+      log_level               = "FATAL",
+      docker_smrttools        = docker_smrttools
   }
 
   # for each group of guides
@@ -67,20 +82,30 @@ workflow dark_genes {
     call pbaa_cluster {
       # use pbaa to cluster reads for this guide and generate consensuses
       input:
-        fastq                  = extract_guide_groups.clustered_fastq,
-        fastq_index            = extract_guide_groups.clustered_fastq_index,
-        guides                 = [guides[index]],
-        guide_indices          = [guide_indices[index]],
-        prefix                 = "~{sample_name}.~{guide_name}",
-        pile_size              = 100,
-        max_reads_per_guide    = 1000,
-        max_consensus_reads    = 10,
-        max_amplicon_size      = 15000,
-        min_cluster_frequency  = 0.005,
-        min_cluster_read_count = 2,
-        skip_chimera_detection = true,
-        log_level              = log_level,
-        docker_smrttools       = docker_smrttools
+        fastq                   = extract_guide_groups.clustered_fastq,
+        fastq_index             = extract_guide_groups.clustered_fastq_index,
+        guides                  = [guides[index]],
+        guide_indices           = [guide_indices[index]],
+        prefix                  = "~{sample_name}.~{guide_name}",
+        filter                  = select_first([config.regions[guide_name].filter, 3]),
+        trim_ends               = select_first([config.regions[guide_name].trim_ends, 5]),
+        pile_size               = select_first([config.regions[guide_name].pile_size, 30]),
+        min_var_frequency       = select_first([config.regions[guide_name].min_var_frequency, 0.3]),
+        max_alignments_per_read = select_first([config.regions[guide_name].max_alignments_per_read, 1000]),
+        max_reads_per_guide     = select_first([config.regions[guide_name].max_reads_per_guide, 500]),
+        iterations              = select_first([config.regions[guide_name].iterations, 9]),
+        seed                    = select_first([config.regions[guide_name].seed, 1984]),
+        max_consensus_reads     = select_first([config.regions[guide_name].max_consensus_reads, 100]),
+        max_amplicon_size       = select_first([config.regions[guide_name].max_amplicon_size, 15000]),
+        min_read_qv             = select_first([config.regions[guide_name].min_read_qv, 20]),
+        off_target_groups       = config.regions[guide_name].off_target_groups,
+        min_cluster_frequency   = select_first([config.regions[guide_name].min_cluster_frequency, 0.1]),
+        min_cluster_read_count  = select_first([config.regions[guide_name].min_cluster_read_count, 5]),
+        max_uchime_score        = select_first([config.regions[guide_name].max_uchime_score, 1]),
+        skip_chimera_detection  = select_first([config.regions[guide_name].skip_chimera_detection, false]),
+        skip_consensus          = select_first([config.regions[guide_name].skip_consensus, false]),
+        log_level               = log_level,
+        docker_smrttools        = docker_smrttools
     }
 
     call extract_reads_from_bam as extract_clustered_reads {

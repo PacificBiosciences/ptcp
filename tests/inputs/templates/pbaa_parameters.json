@@ -1,0 +1,32 @@
+{
+  "version": "0.1",
+  "regions": {
+    "cluster": {
+      "pile_size": 100,
+      "max_reads_per_guide": 5000,
+      "max_amplicon_size": 15000,
+      "min_cluster_frequency": 0.001,
+      "min_cluster_read_count": 2,
+      "skip_chimera_detection": true,
+      "skip_consensus": true
+    },
+    "F8_inv1": {
+      "pile_size": 100,
+      "max_reads_per_guide": 1000,
+      "max_consensus_reads": 10,
+      "max_amplicon_size": 15000,
+      "min_cluster_frequency": 0.01,
+      "min_cluster_read_count": 2,
+      "skip_chimera_detection": true
+    },
+    "F8_inv22": {
+      "pile_size": 100,
+      "max_reads_per_guide": 1000,
+      "max_consensus_reads": 10,
+      "max_amplicon_size": 15000,
+      "min_cluster_frequency": 0.005,
+      "min_cluster_read_count": 2,
+      "skip_chimera_detection": true
+    }
+  }
+}

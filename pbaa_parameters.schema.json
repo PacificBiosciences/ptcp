@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PBAA Configuration Schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "regions": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-zA-Z0-9_]+$": {
+          "type": "object",
+          "properties": {
+            "filter": {
+              "type": "integer",
+              "default": 3
+            },
+            "trim_ends": {
+              "type": "integer",
+              "default": 5
+            },
+            "pile_size": {
+              "type": "integer",
+              "default": 30
+            },
+            "min_var_frequency": {
+              "type": "number",
+              "default": 0.3
+            },
+            "max_alignments_per_read": {
+              "type": "integer",
+              "default": 1000
+            },
+            "max_reads_per_guide": {
+              "type": "integer",
+              "default": 500
+            },
+            "iterations": {
+              "type": "integer",
+              "default": 9
+            },
+            "seed": {
+              "type": "integer",
+              "default": 1984
+            },
+            "max_consensus_reads": {
+              "type": "integer",
+              "default": 100
+            },
+            "max_amplicon_size": {
+              "type": "integer",
+              "default": 15000
+            },
+            "min_read_qv": {
+              "type": "integer",
+              "default": 20
+            },
+            "off_target_groups": {
+              "type": ["string", "null"],
+              "description": "optional comma delimited list of sequence names"
+            },
+            "min_cluster_frequency": {
+              "type": "number",
+              "default": 0.1
+            },
+            "min_cluster_read_count": {
+              "type": "integer",
+              "default": 5
+            },
+            "max_uchime_score": {
+              "type": "number",
+              "default": 1.0
+            },
+            "skip_chimera_detection": {
+              "type": "boolean",
+              "default": false
+            },
+            "skip_consensus": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "required": []
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["version", "regions"]
+}

@@ -13,6 +13,7 @@ workflow puretarget_darkgenes {
     File ref_fasta
     File ref_index
 
+    File pbaa_params_json
     File pbaa_guide_bed
     File pbaa_mask_bed
 
@@ -112,6 +113,7 @@ workflow puretarget_darkgenes {
         sample_name      = sample_name,
         sex              = sample_sex,
         unmapped_bam     = unmapped_bam,
+        pbaa_params      = pbaa_params_json,
         guides           = make_pbaa_guides.guides,
         guide_indices    = make_pbaa_guides.guide_indices,
         ref_fasta        = mask_reference.masked_ref,
@@ -147,6 +149,7 @@ workflow puretarget_darkgenes {
 
   output {
     File repeats     = trgt_bed
+    File pbaa_params = pbaa_params_json
     File pbaa_guides = pbaa_guide_bed
     File pbaa_mask   = pbaa_mask_bed
 

@@ -9,6 +9,9 @@ check:
 check-all:
 	miniwdl check --strict *.wdl && echo "All workflows are valid" || echo "Some workflows are invalid"
 
+check-schema:
+	check-jsonschema --schemafile pbaa_parameters.schema.json tests/data/pbaa_parameters.json
+
 list-tasks:
 	miniwdl check $(wdl).wdl | grep task | sed 's/^[[:blank:]]*//' | cut -d' ' -f2
 
