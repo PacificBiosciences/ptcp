@@ -17,25 +17,29 @@
 | `Array[File]?` | `fail_reads` | list of `fail_reads.bam` paths (Revio) |  |
 | `File` | `ref_fasta` | reference fasta |  |
 | `File` | `ref_index` | reference fasta fai |  |
-| `File` | `pbaa_guide_bed` | bed file of pbaa guide regions | [^2]  |
-| `File` | `pbaa_mask_bed` | bed file of reference regions to mask | [^3] |
-| `File` | `trgt_bed` | bed file of repeat expansion targets in TRGT format | [^4] |
+| `File` | `pbaa_params_json` | JSON of pbaa parameters | [^2] |
+| `File` | `pbaa_guide_bed` | bed file of pbaa guide regions | [^3]  |
+| `File` | `pbaa_mask_bed` | bed file of reference regions to mask | [^4] |
+| `File` | `trgt_bed` | bed file of repeat expansion targets in TRGT format | [^5] |
 | `String?` | `log_level` | default: `'INFO'` | `['DEBUG', 'INFO', 'WARN']` |
 | `String` | `docker_smrttools` | URI for Docker image or tarball | Default value will not be valid.  You must create the image yourself and override the default. |
 
 [^1]: The sample sheet is a 4 column headered TSV with fields `movie` (e.g., `m60000e_240517_211441`), `barcode` (e.g., `bc2017--bc2017`), `sample_id` (alphanumeric characters, dashes, and underscores only), `sex` (`M`, `F`, or null string, assumed to be `F`).
 
-[^2]: The pbaa guide bed file is a 4 column unheadered bed file with fields `chrom`, `start`, `end`, and `name` that is used to generate [pbaa guide sequences](https://github.com/PacificBiosciences/pbAA?tab=readme-ov-file#customizing-guide-sequences).  The `name` field is the guide name, following the format `sequence_name|group_name`.  Groups are similar sequences (e.g., paralogous sequences) that should be treated as a single target by pbaa.
+[^2]: The pbaa parameters JSON file schema is [tests/inputs/templates/pbaa_parameters.schema.json](tests/inputs/templates/pbaa_parameters.schema.json).  An example can be found at [tests/inputs/templates/pbaa_parameters.json](tests/inputs/templates/pbaa_parameters.json).
 
-[^3]: The mask bed file is a 3 column unheadered bed file with fields `chrom`, `start`, and `end`.  These regions will be masked in the reference fasta.
+[^3]: The pbaa guide bed file is a 4 column unheadered bed file with fields `chrom`, `start`, `end`, and `name` that is used to generate [pbaa guide sequences](https://github.com/PacificBiosciences/pbAA?tab=readme-ov-file#customizing-guide-sequences).  The `name` field is the guide name, following the format `sequence_name|group_name`.  Groups are similar sequences (e.g., paralogous sequences) that should be treated as a single target by pbaa.
 
-[^4]: The TRGT bed file is a 4 column unheadered bed file with fields `chrom`, `start`, `end`, and `name` following the [TRGT repeat definitions format](https://github.com/PacificBiosciences/trgt/blob/main/docs/repeat_files.md).
+[^4]: The mask bed file is a 3 column unheadered bed file with fields `chrom`, `start`, and `end`.  These regions will be masked in the reference fasta.
+
+[^5]: The TRGT bed file is a 4 column unheadered bed file with fields `chrom`, `start`, `end`, and `name` following the [TRGT repeat definitions format](https://github.com/PacificBiosciences/trgt/blob/main/docs/repeat_files.md).
 
 ## Outputs
 
 | Type | Name | Description | Notes |
 |---|---|---|---|
 | `File` | `repeats` | copy of input `trgt_bed` |   |
+| `File` | `pbaa_params` | copy of input `pbaa_params_json` |   |
 | `File` | `pbaa_guides` | copy of input `pbaa_guide_bed` |   |
 | `File` | `pbaa_mask` | copy of input `pbaa_mask_bed` |   |
 | `Array[Float]` | `chry_frequency` | $\frac{reads_{chrY}}{reads_{mapped}}$ | potentially useful to infer presence of chrY |
@@ -117,6 +121,9 @@ make check wdl=common
 
 # lint all wdl
 make check-all
+
+# lint pbaa params
+make check-schema
 
 # list all tasks in common.wdl
 make list-tasks wdl=common
