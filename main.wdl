@@ -148,11 +148,12 @@ workflow puretarget_darkgenes {
   }
 
   output {
-    File repeats     = trgt_bed
-    File pbaa_params = pbaa_params_json
-    File pbaa_guides = pbaa_guide_bed
-    File pbaa_mask   = pbaa_mask_bed
+    File  repeats              = trgt_bed
+    File  pbaa_params          = pbaa_params_json
+    File  pbaa_guides          = pbaa_guide_bed
+    File  pbaa_mask            = pbaa_mask_bed
 
+    Array[String] sample_names = collect_inputs.sample_names
     Array[Float] chry_frequency  = infer_chry.chry_frequency
 
     Array[File] trgt_vcf                            = trgt.vcf

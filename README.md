@@ -42,6 +42,7 @@
 | `File` | `pbaa_params` | copy of input `pbaa_params_json` |   |
 | `File` | `pbaa_guides` | copy of input `pbaa_guide_bed` |   |
 | `File` | `pbaa_mask` | copy of input `pbaa_mask_bed` |   |
+| `Array[String]` | `sample_names` | sample names, in same order as other arrays |   |
 | `Array[Float]` | `chry_frequency` | $\frac{reads_{chrY}}{reads_{mapped}}$ | potentially useful to infer presence of chrY |
 | `Array[Float]` | `trgt_vcf` | tandem repeat genotypes | [details](https://github.com/PacificBiosciences/trgt/blob/main/docs/vcf_files.md) |
 | `Array[File]` | `trgt_spanning_bam` | BAM of input for trvz |   |
