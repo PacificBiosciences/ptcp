@@ -3,6 +3,8 @@ attrs==23.2.0
 bullet==2.2.0
 certifi==2024.6.2
 charset-normalizer==3.3.2
+check-jsonschema==0.28.5
+click==8.1.7
 coloredlogs==15.0.1
 docker==7.1.0
 exceptiongroup==1.2.1
@@ -26,8 +28,11 @@ python-json-logger==2.0.7
 pyyaml==6.0.1
 referencing==0.35.1
 regex==2024.5.15
+regress==0.4.5
 requests==2.32.3
 rpds-py==0.18.1
+ruamel-yaml==0.18.6
+ruamel-yaml-clib==0.2.8
 setuptools==70.0.0
 tomli==2.0.1
 urllib3==2.2.2
