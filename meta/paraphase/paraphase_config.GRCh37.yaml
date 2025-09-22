@@ -1,0 +1,75 @@
+cyp21:
+  genes: CYP21A2
+  realign_region: 6:32005862-32013219
+  extract_regions: 6:31947777-32038363
+smn1:
+  genes: SMN1,SMN2
+  data:
+    known_haplotypes: known_haplotypes.json
+  realign_region: 5:70185827-70395827
+  gene2_region: 5:69336353-69384373
+  extract_regions: 5:69337353-69383373 5:70212773-70258827
+  pivot_site: 70247773
+  left_boundary: 70234402
+  right_boundary: 70248522
+  noisy_region: [[70242753, 70242785]]
+  add_sites: ["70247773_C_T"]
+  strip_c_region_start: 70220914
+  strip_c_region_end: 70248842
+  deletion1_size: 3559
+  deletion2_size: 6310
+  deletion1_name: "70213527_del_3559"
+  deletion2_name: "70244113_del_6310"
+  # delta7-8 positions to check
+  del2_3p_pos1: 70244113
+  del2_3p_pos2: 70244396
+  del2_5p_pos1: 70250410
+  del2_5p_pos2: 70250419
+  # smn1 upstream deletion
+  del1_3p_pos1: 70213527
+  del1_3p_pos2: 70213622
+  del1_5p_pos1: 70216894
+  del1_5p_pos2: 70217087
+gba:
+  genes: GBA1
+  realign_region: 1:155204137-155211510
+  extract_regions: 1:155181171-155192566 1:155202617-155214056
+  gene2_region: 1:155183510-155189296
+  check_nm: 0.2
+  use_r2k: True
+  noisy_region: [[155206374, 155206963], [155208738, 155209373], [155209951, 155210280], [155211191, 155211691]]
+  gene1_cn2: True
+  deletion1_size: 55
+  deletion1_name: "155205540_del_55"
+  del1_3p_pos1: 155205540
+  del1_3p_pos2: 155205541
+  del1_5p_pos1: 155205595
+  del1_5p_pos2: 155205596
+hba:
+  genes: HBA1,HBA2
+  realign_region: 16:221799-225499
+  extract_regions: 16:218655-227540
+  check_nm: 0.25
+  clip_5p_positions: [221988, 222889, 223055]
+  clip_3p_positions: [223728, 225045]
+  is_tandem: True
+  4p2_coordinate: 16:219741-223999
+  3p7_coordinate: 16:222239-226043
+  depth_region: [[209999, 239999]]
+  noisy_region: [[222416, 222417]]
+f8inv22:
+  realign_region: X:154106528-154120466
+  extract_regions: X:154105528-154121464 X:154682371-154695489
+  clip_5p_positions: [154109090]
+  clip_3p_positions: [154118602]
+f8inv1:
+  realign_region: X:154233673-154238755
+  extract_regions: X:154232673-154239753 X:154372752-154379062
+  clip_5p_positions: [154234378]
+  clip_3p_positions: [154235430]
+rpgr:
+  realign_region: X:38142937-38148014
+  extract_regions: X:38142937-38148014
+hbb:
+  realign_region: 11:5245816-5251088
+  extract_regions: 11:5244817-5252088

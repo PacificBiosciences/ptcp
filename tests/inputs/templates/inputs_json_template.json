@@ -1,0 +1,11 @@
+{
+    "ptcp.sample_sheet": "",
+    "ptcp.ref_fasta": "/path/to/reference/hg38.fa",
+    "ptcp.ref_index": "/path/to/reference/hg38.fa.fai",
+    "ptcp.trgt_bed": "/path/to/ptcp/meta/trgt/PureTarget_repeat_expansion_panel_2.0.repeat_definition.GRCh38.bed",
+    "ptcp.paraphase_config_yaml": "/path/to/ptcp/meta/paraphase/paraphase_config.GRCh38.yaml",
+    "ptcp.genome_version": "38",
+    "ptcp.ptcp_qc_bed": "/path/to/ptcp/meta/ptcp-qc/ptcp-qc.GRCh38.bed",
+    "ptcp.hifi_reads": [],
+    "ptcp.fail_reads": []
+}

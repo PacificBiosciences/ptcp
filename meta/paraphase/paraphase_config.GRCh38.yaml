@@ -1,0 +1,75 @@
+cyp21:
+  genes: CYP21A2
+  realign_region: chr6:32038085-32045442
+  extract_regions: chr6:31980000-32070586
+smn1:
+  genes: SMN1,SMN2
+  data:
+    known_haplotypes: known_haplotypes.json
+  realign_region: chr5:70890000-71100000
+  gene2_region: chr5:70040526-70088546
+  extract_regions: chr5:70041526-70087546 chr5:70916946-70963000
+  pivot_site: 70951946
+  left_boundary: 70938575
+  right_boundary: 70952695
+  noisy_region: [[70946926, 70946958]]
+  add_sites: ["70951946_C_T"]
+  strip_c_region_start: 70925087
+  strip_c_region_end: 70953015
+  deletion1_size: 3559
+  deletion2_size: 6310
+  deletion1_name: "70917700_del_3559"
+  deletion2_name: "70948286_del_6310"
+  # delta7-8 positions to check
+  del2_3p_pos1: 70948286
+  del2_3p_pos2: 70948569
+  del2_5p_pos1: 70954583
+  del2_5p_pos2: 70954592
+  # smn1 upstream deletion
+  del1_3p_pos1: 70917700
+  del1_3p_pos2: 70917795
+  del1_5p_pos1: 70921067
+  del1_5p_pos2: 70921260
+gba:
+  genes: GBA1
+  realign_region: chr1:155234346-155241719
+  extract_regions: chr1:155211380-155222775 chr1:155232826-155244265
+  gene2_region: chr1:155213719-155219505
+  check_nm: 0.2
+  use_r2k: True
+  noisy_region: [[155236583, 155237172], [155238947, 155239582], [155240160, 155240489], [155241400, 155241900]]
+  gene1_cn2: True
+  deletion1_size: 55
+  deletion1_name: "155235749_del_55"
+  del1_3p_pos1: 155235749
+  del1_3p_pos2: 155235750
+  del1_5p_pos1: 155235804
+  del1_5p_pos2: 155235805
+hba:
+  genes: HBA1,HBA2
+  realign_region: chr16:171800-175500
+  extract_regions: chr16:168656-177541
+  check_nm: 0.25
+  clip_5p_positions: [171989, 172890, 173056]
+  clip_3p_positions: [173729, 175046]
+  is_tandem: True
+  4p2_coordinate: chr16:169742-174000
+  3p7_coordinate: chr16:172240-176044
+  depth_region: [[160000, 190000]]
+  noisy_region: [[172417, 172418]]
+f8inv22:
+  realign_region: chrX:154878253-154892191
+  extract_regions: chrX:154877253-154893189 chrX:155452710-155465828
+  clip_5p_positions: [154880815]
+  clip_3p_positions: [154890327]
+f8inv1:
+  realign_region: chrX:155005398-155010480
+  extract_regions: chrX:155004398-155011478 chrX:155144477-155150787
+  clip_5p_positions: [155006103]
+  clip_3p_positions: [155007155]
+rpgr:
+  realign_region: chrX:38283684-38288761
+  extract_regions: chrX:38283684-38288761
+hbb:
+  realign_region: chr11:5224586-5229858
+  extract_regions: chr11:5223587-5230858

@@ -1,0 +1,720 @@
+#!/usr/bin/env python
+"""
+Train a SMN1/2 copy number estimator based on
+coverage of other PureTarget loci
+"""
+__author__ = "Guilherme Sena"
+__version__ = "0.1"
+
+import argparse
+import os
+import sys
+import json
+import math
+import pickle
+
+from typing import Optional, Tuple, Any, List
+
+import logging
+
+import numpy as np
+import pandas as pd
+
+from matplotlib import pyplot as plt
+from scipy.stats import poisson
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
+
+
+CARRIER_SCREENING_LOCI = {
+    "FXS_FMR1",  # TR
+    "FRDA_FXN",  # TR
+    "cyp21",
+    "gba",
+    "hba",
+    "f8inv1",
+    "f8inv22",
+    "smn1",
+    "FRAXE_AFF2",  # TR - subgroups: FRAXE_AFF2 (TRGT), AFF2_v1
+    "PRTS_ARX",  # TR - subgroups: PRTS_ARX (TRGT), EIEE1_ARX (TRGT)
+    "rpgr",
+    "hbb",
+}
+
+PARAPHASE_LOCI = {
+    "cyp21",
+    "gba",
+    "hba",
+    "hbb",
+    "smn1",
+    "rpgr",
+    "f8inv1",
+    "f8inv22",
+}
+
+TRGT_LOCI = {
+    "FRDA_FXN",
+    "FXS_FMR1",
+    "AFF2",
+    "ARX",
+}
+
+# Mapping of loci to their subloci with TRGT results
+TR_SUBLOCI_MAP = {}
+
+TR_EXPANSION_THRESHOLDS = {
+    "FRDA_FXN": 150,
+    "FXS_FMR1": 200,
+}
+
+
+class PureTargetDataset:
+    """
+    The main dataset class that is used both
+    for training and evaluation. ptcp-qc JSON
+    files are parsed into this class
+    """
+
+    def __init__(self: "PureTargetDataset", ptcp_qc_json_file: str) -> None:
+        """
+        take useful values from ptcp-qc to predict SMN1/2 coverage
+        """
+        self.success = False
+
+        logging.debug("reading dataset %s", ptcp_qc_json_file)
+        with open(ptcp_qc_json_file, "r", encoding="utf8") as f:
+            dat = json.load(f)
+
+        if not "stats" in dat:
+            logging.warning("dataset %s has no 'stats' field. Bail.", ptcp_qc_json_file)
+            return
+
+        self.sample_name = None
+        self.locus_series = None
+        self.smn1_cn = None
+        self.smn2_cn = None
+        self.smn_coverages = {}
+
+        stats = dat["stats"]
+        self.on_target_hifi = stats["on_target"]["hifi"]
+        off_target_hifi = stats["off_target"]["hifi"]
+        self.tot_hifi = self.on_target_hifi + off_target_hifi
+        locus_results = dat["locus_results"]
+        ans = {}
+        sample_name = dat["sample_name"]
+
+        if not "smn1" in locus_results:
+            logging.warning(
+                "dataset %s has no smn1 output and cannot be trained with or tested. Bail.",
+                sample_name,
+            )
+            return
+
+        for locus in locus_results:
+            if not is_carrier_screening_locus(locus):
+                continue
+
+            res = locus_results[locus]
+            locus_coverage = None
+
+            # outcome
+            if locus == "smn1":
+                (
+                    self.smn_coverages,
+                    self.smn1_cn,
+                    self.smn2_cn,
+                    self.smn1_unique_haplos,
+                    self.smn2_unique_haplos,
+                ) = get_smn_coverage(res, sample_name)
+                if self.smn1_cn is None or self.smn2_cn is None:
+                    logging.warning("failed to read SMN CN for dataset %s", sample_name)
+                    return
+
+            # predictors
+            else:
+                if is_tr_locus(locus):
+                    locus_coverage = get_tr_coverage(res, locus, sample_name)
+
+                elif is_paraphase_locus(locus):
+                    locus_coverage = get_paraphase_coverage(res, locus, sample_name)
+
+                if locus_coverage is None:
+                    logging.warning(
+                        "dataset %s has no coverage in %s. Bail.", sample_name, locus
+                    )
+                    return
+
+                ans[locus + "_1"] = locus_coverage
+                ans[locus + "_2"] = locus_coverage**2
+                ans[locus + "_rel_on_target"] = locus_coverage / self.on_target_hifi
+                ans[locus + "_rel_hifi"] = locus_coverage / self.tot_hifi
+
+        # need to check if we skipped SMN altogether
+        if self.smn1_cn is None or self.smn2_cn is None:
+            return
+
+        self.locus_series = pd.Series(ans, name=sample_name)
+        self.sample_name = sample_name
+        self.success = True
+
+    def get_predictors(self: "PureTargetDataset") -> pd.DataFrame:
+        """
+        get all features used for predicting coverage.
+        Usually the coverage/copy of hard gene loci +
+        the total coverage on target and hifi
+        """
+        ret = pd.concat(
+            [
+                pd.Series(
+                    {"on_target_hifi": self.on_target_hifi, "tot_hifi": self.tot_hifi}
+                ),
+                self.locus_series,
+            ]
+        )
+        ret.name = self.sample_name
+        return ret
+
+    def is_possible_smn_homology(self: "PureTargetDataset") -> bool:
+        """
+        check if dataset *may* have a homology case. This happens when there is at most
+        one unique haplotype for both SMN1 and SMN2
+        """
+        return self.smn1_unique_haplos <= 1 and self.smn2_unique_haplos <= 1
+
+    def is_valid_training_dataset(self: "PureTargetDataset") -> bool:
+        """
+        if the dataset is good enough to use for training,
+        i.e., if all haplotypes are clearly defined and
+        coverage (both total and per haplotype) is large enough
+        """
+        if not self.success:
+            return False
+        return (
+            self.on_target_hifi >= 2000
+            and not (self.is_possible_smn_homology())
+            and min(x["coverage_per_copy"] for _, x in self.smn_coverages.items()) > 5
+        )
+
+
+def is_tr_expansion(size: float, locus: str) -> bool:
+    """
+    heuristics to exclude TR expansions from coverage counting
+    since they are biased toward lower counts
+    """
+    threshold = TR_EXPANSION_THRESHOLDS.get(locus)
+    if threshold is None:
+        return False
+    return size >= threshold
+
+
+def get_tr_coverage(
+    locus_result: dict, locus: str, sample_name: str
+) -> Optional[float]:
+    """
+    Get the coverage per locus for TRGT repeats. This means
+    checking if the locus is an expansion, in which case we won't
+    use that allele's coverage
+    """
+    if not "trgt_results" in locus_result:
+        logging.warning(
+            "dataset %s has no trgt_results for locus %s", sample_name, locus
+        )
+        return None
+
+    subloci = TR_SUBLOCI_MAP.get(locus, [locus])
+
+    for sublocus in subloci:
+        trgt_results = locus_result["trgt_results"][sublocus]["alleles"]
+        read_counts = 0
+        num_alleles = 0
+        for allele in trgt_results:
+            allele_results = trgt_results[allele]
+            coverage = float(allele_results["coverage"])
+            size = float(allele_results["size"])
+            if not is_tr_expansion(size, locus):
+                read_counts += coverage
+                num_alleles += 1
+
+    if num_alleles == 0:
+        return None
+    return read_counts / num_alleles
+
+
+def get_paraphase_coverage(
+    locus_result: dict, locus: str, sample_name: str
+) -> Optional[float]:
+    """
+    get the paraphase coverage by dividing the total coverage by
+    the total CN reported by paraphase
+    """
+    if not "paraphase_results" in locus_result:
+        logging.warning(
+            "dataset %s has no paraphase_results for locus %s", sample_name, locus
+        )
+        return None
+    if not locus in locus_result["paraphase_results"]:
+        logging.warning(
+            "dataset %s has no locus %s in paraphase_results", sample_name, locus
+        )
+        return None
+
+    paraphase_results = locus_result["paraphase_results"][locus]
+    if not "total_cn" in paraphase_results:
+        logging.warning(
+            "sample %s has no total_cn value for locus %s",
+            sample_name,
+            locus,
+        )
+        return None
+
+    total_reads = float(paraphase_results["total_reads"])
+    copy_number = float(paraphase_results["total_cn"])
+
+    if copy_number == 0:
+        return None
+    return total_reads / copy_number
+
+
+def get_smn_coverage(
+    locus_result: dict, sample_name: str
+) -> Tuple[Optional[dict], Any, Any]:
+    """
+    get all coverages per copy of all SMN haplotypes.
+    Differs slightly from generic paraphase call because
+    we have multiple results here.
+    """
+    if not "paraphase_results" in locus_result:
+        logging.warning("dataset %s has no paraphase_results for SMN1", sample_name)
+        return [None]*5
+    if not "smn1" in locus_result["paraphase_results"]:
+        logging.warning("dataset %s has no smn1 in paraphase_results", sample_name)
+        return [None]*5
+
+    paraphase_results = locus_result["paraphase_results"]["smn1"]
+    if not "haplotypes" in paraphase_results:
+        logging.warning(
+            "dataset %s has no 'haplotypes' in SMN results. Bail.", sample_name
+        )
+        return [None]*5
+    if not "smn_info" in paraphase_results:
+        logging.warning(
+            "dataset %s has no 'smn_info' in SMN results. Bail", sample_name
+        )
+        return [None]*5
+
+    smn_info = paraphase_results["smn_info"]
+    if not "smn1_cn" in smn_info or not "smn2_cn" in smn_info:
+        logging.warning(
+            "dataset %s has no 'smnx_cn' in SMN results. Bail.", sample_name
+        )
+        return [None]*5
+
+    smn1_cn = smn_info["smn1_cn"]
+    smn2_cn = smn_info["smn2_cn"]
+
+    haplotypes = paraphase_results["haplotypes"]
+    ans = {}
+    smn1_unique_haplos = 0
+    smn2_unique_haplos = 0
+    for hap in haplotypes:
+        if hap.startswith("smn"):
+            if "_smn1" in hap:
+                smn1_unique_haplos += 1
+            if "_smn2" in hap:
+                smn2_unique_haplos += 1
+            cn = 1 if not "n_copy" in haplotypes[hap] else 2
+            rn = haplotypes[hap]["fractional_count"]
+            ans[hap] = {
+                "copy_number": cn,
+                "coverage_per_copy": rn / cn,
+            }
+    return ans, smn1_cn, smn2_cn, smn1_unique_haplos, smn2_unique_haplos
+
+
+def is_paraphase_locus(locus: str) -> bool:
+    """
+    check if the locus has a pseudogene, in which
+    case we need to normalize by the number of haplotypes
+    phased by paraphase. Note: excludes X chromosomes
+    """
+    return locus in PARAPHASE_LOCI
+
+
+def is_tr_locus(locus: str) -> bool:
+    """
+    check if the locus is tandem repeat, in which case we need to
+    only use the coverage of the unexpanded allele
+    """
+    return locus in TRGT_LOCI
+
+
+def is_carrier_screening_locus(locus: str) -> bool:
+    """
+    whether the locus being analyzed comes from the carrier
+    screening panel
+    """
+    return locus in CARRIER_SCREENING_LOCI
+
+
+def dpois(x: float, lam: float) -> float:
+    """
+    poisson likelihood since scipy's produces too many nans
+    """
+
+    try:
+        x = int(x)
+        return math.exp(-lam) * ((lam) ** x) / math.factorial(x)
+    except OverflowError:
+        # use scipy
+        return poisson.pmf(x, lam)
+
+
+def is_ptcp_qc_json(path: str) -> bool:
+    """
+    checks if an arbitrary file was generated from ptcp-qc
+    """
+    if not os.path.isfile(path) or not path.endswith(".json"):
+        return False
+
+    # if the JSON is a large file, best to just look for "ptcp-qc"
+    # in it instead of parsing the whole thing
+    with open(path, "r", encoding="utf8") as f:
+        return "ptcp-qc" in f.read()
+
+
+def read_ptcp_qc_jsons(datadir: str) -> pd.DataFrame:
+    """
+    read a directory full of JSONs and parse them into a dataframe
+    """
+    datasets = [
+        PureTargetDataset(os.path.join(datadir, f))
+        for f in os.listdir(datadir)
+        if is_ptcp_qc_json(os.path.join(datadir, f))
+    ]
+    datasets = [x for x in datasets if x.is_valid_training_dataset()]
+    logging.info("Using %s JSON datasets for training", len(datasets))
+
+    features = []
+    labels = []
+
+    # the training data contains multiple repeated sets of predictors
+    # for each SMN copy the dataset has
+    for x in datasets:
+        for hap in x.smn_coverages:
+            features.append(x.get_predictors())
+            labels.append(x.smn_coverages[hap]["coverage_per_copy"])
+
+    # get non-homology high-coverage samples for training
+    features = pd.concat(features, axis=1)
+    labels = np.array(labels)
+
+    return features.T, labels
+
+
+def plot_regression(y: np.ndarray, pred: np.ndarray) -> (plt.Figure, plt.Axes):
+    """
+    plot the comparison between prediction and regression
+    """
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.scatter(y, pred, s=0.5)
+    ax.set_aspect("equal", adjustable="box")
+    ax.axline((0, 0), slope=1, color="#990000", alpha=0.5, linestyle="--")
+    ax.set_xlabel("observed")
+    ax.set_ylabel("predicted")
+
+    xlim = ax.get_xlim()
+    ylim = ax.get_ylim()
+    axmin = np.min(xlim + ylim)
+    axmax = np.max(xlim + ylim)
+    ax.set_xlim([axmin, axmax])
+    ax.set_ylim([axmin, axmax])
+
+    return fig, ax
+
+
+def train(
+    train_dir: str, print_outliers: bool
+) -> Tuple[LinearRegression, List[float], List[float]]:
+    """
+    trains a scikit linear regression given a directory populated
+    with ptcp-qc JSON files.
+    """
+
+    # read X and y
+    features, y = read_ptcp_qc_jsons(train_dir)
+    names = features.index
+    x = features.to_numpy()
+
+    # fit regression coefficients
+    reg = LinearRegression(fit_intercept=False).fit(x, y)
+    pred = reg.predict(x)
+
+    logging.info(
+        "features dimensions: %s x %s",
+        features.shape[0],
+        features.shape[1],
+    )
+    rsq = round(r2_score(pred, y), 4)
+    logging.info("r-squared: %s", rsq)
+
+    if print_outliers:
+        logging.info("OUTLIERS:")
+        for i in range(len(names)):
+            if y[i] / pred[i] >= 1.5 or y[i] / pred[i] < 0.5:
+                pred[i] = round(pred[i], 4)
+                y[i] = int(y[i])
+                print(
+                    "\t".join(
+                        [
+                            str(x)
+                            for x in [
+                                names[i],
+                                pred[i],
+                                y[i],
+                                round(y[i] / pred[i], 4),
+                            ]
+                        ]
+                    )
+                )
+    return reg, y, pred
+
+
+def save_model(reg: LinearRegression, output_file: str) -> None:
+    """
+    save model as either JSON or PKL (depending on requested format)
+    """
+    if output_file.lower().endswith(".pkl"):
+        logging.info("saving linear regression as pickle file: %s", output_file)
+        with open(output_file, "wb") as f:
+            pickle.dump(reg, f)
+
+    elif output_file.lower().endswith(".json"):
+        logging.info("saving linear regression as JSON file: %s", output_file)
+        model_spec = {
+            "fit_intercept": reg.fit_intercept,
+            "positive": reg.positive,
+            "coef": reg.coef_.tolist(),
+            "intercept": 0.0,
+            "n_features_in": reg.n_features_in_,
+            # "feature_names": reg.feature_names_in_.tolist(),
+        }
+        with open(output_file, "w", encoding="utf8") as f:
+            json.dump(model_spec, f)
+    else:
+        raise ValueError(
+            f"model output must be either .pkl or .json. Invalid name: {output_file}"
+        )
+
+
+def load_model(model_file: str) -> LinearRegression:
+    """
+    load model from either JSON or PKL (depending on format)
+    """
+    with open(model_file, "rb") as f:
+        if model_file.endswith(".pkl"):
+            reg = pickle.load(f)
+        elif model_file.endswith(".json"):
+            p = json.load(f)
+            reg = LinearRegression(
+                fit_intercept=p["fit_intercept"],
+                positive=p["positive"],
+            )
+            reg.coef_ = np.array(p["coef"])
+            reg.intercept_ = p["intercept"]
+            reg.n_features_in_ = p["n_features_in"]
+            # reg.feature_names_in_ = np.array(p["feature_names"], dtype=object)
+        else:
+            raise ValueError("model input must be either .pkl or .json")
+    return reg
+
+
+def evaluate(reg: LinearRegression, dataset: PureTargetDataset) -> dict:
+    """
+    evaluate a PureTargetDataset in a linear regression, and return
+    the JSON summary showing the probability of CN scaling for each
+    haplotype.
+    """
+    ans = {}
+    if not dataset.success:
+        logging.warning(
+            "dataset does not contain info on all loci for SMN copy number depth adjustment."
+        )
+        ans["status"] = "missing_loci_for_depth_adjustment"
+        return ans
+
+    x = dataset.get_predictors().to_numpy().reshape(1, -1)
+    pred = float(reg.predict(x)[0])
+    pred = round(pred, 4)
+    ans = {
+        "status": "has_all_loci_for_depth_adjustment",
+        "smn1_unique_haplotypes": dataset.smn1_unique_haplos,
+        "smn2_unique_haplotypes": dataset.smn2_unique_haplos,
+        "is_possible_homology": dataset.is_possible_smn_homology(),
+        "predicted_coverage_per_copy": pred,
+    }
+
+    if pred < 0:
+        ans["success"] = False
+        return ans
+
+    adjusted_smn1_cn = 0
+    adjusted_smn2_cn = 0
+    for hap, v in dataset.smn_coverages.items():
+        is_hap_smn1 = "_smn1" in hap
+        y = v["coverage_per_copy"]
+        cn = v["copy_number"]
+
+        # here the array just stores the simple likelihoods
+        posterior_probs = [0.0] * 4
+        for i in range(4):
+            posterior_probs[i] = dpois(y, pred * (i + 1) / cn)
+        denom = sum(posterior_probs)
+
+        # here they are posterior probabilities
+        for i in range(4):
+            posterior_probs[i] = round(posterior_probs[i] / denom, 4)
+
+        ans[hap] = {
+            "paraphase_copy_number": cn,
+            "observed_coverage": int(y*cn),
+            "observed_coverage_per_copy": int(y),
+            "obs_exp_ratio": round(y / pred, 4),
+        }
+        for i in range(4):
+            ans[hap][f"prob_copy_number_is_{i+1}"] = posterior_probs[i]
+            if is_hap_smn1:
+                adjusted_smn1_cn += posterior_probs[i] * (i + 1)
+            else:
+                adjusted_smn2_cn += posterior_probs[i] * (i + 1)
+
+    # GS: as of now we read the JSON twice, which is wasteful but
+    # does not affect runtime on small files. Eventually change
+    # the PureTargetDataset constructor to get the read JSON file.
+    ans["success"] = True
+    ans["adjusted_smn1_cn"] = min([int(round(adjusted_smn1_cn)), 4])
+    ans["adjusted_smn2_cn"] = min([int(round(adjusted_smn2_cn)), 4])
+    ans["matches_paraphase"] = ans["adjusted_smn1_cn"] == dataset.smn1_cn and ans["adjusted_smn2_cn"] == dataset.smn2_cn
+
+    return ans
+
+
+def append_homology_to_ptcp_qc_report(homology: dict, ptcp_qc_file: str) -> dict:
+    """
+    checks if the SMN paraphase results is in the ptcp-qc report, and
+    if so, append the homology adjustment information to it.
+    """
+    with open(ptcp_qc_file, "r", encoding="utf8") as f:
+        ptcp_qc_report = json.load(f)
+
+    if (
+        "locus_results" in ptcp_qc_report
+        and "smn1" in ptcp_qc_report["locus_results"]
+        and "paraphase_results" in ptcp_qc_report["locus_results"]["smn1"]
+    ):
+        ptcp_qc_report["locus_results"]["smn1"]["paraphase_results"][
+            "homology_adjustment"
+        ] = homology
+    return ptcp_qc_report
+
+
+def parse_args() -> argparse.Namespace:
+    """
+    parse command line arguments
+    """
+    parser = argparse.ArgumentParser(
+        description="Train or test a model to predict SMN1/2 coverage per CN"
+    )
+
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    train_parser = subparsers.add_parser(
+        "train", help="Train the SMN coverage prediction model"
+    )
+    train_parser.add_argument(
+        "--train_dir",
+        metavar="DIR",
+        required=True,
+        type=str,
+        help="Directory containing all ptcp-qc JSON outputs to be used for training",
+    )
+    train_parser.add_argument(
+        "--output_file",
+        metavar="MODEL.[pkl|json]",
+        required=True,
+        type=str,
+        help="Output file for linear regression model",
+    )
+    train_parser.add_argument(
+        "--plot-regression",
+        action="store_true",
+        help="Generate a scatter plot of observed vs predicted values",
+    )
+    train_parser.add_argument(
+        "--print-outliers",
+        action="store_true",
+        help="Print training outliers to help make a clean training set",
+    )
+
+    test_parser = subparsers.add_parser(
+        "test", help="Test a dataset using a trained model"
+    )
+    test_parser.add_argument(
+        "--model",
+        metavar="MODEL.[pkl|json]",
+        required=True,
+        type=str,
+        help="Input file (pkl or json) containing the trained model",
+    )
+    test_parser.add_argument(
+        "--dataset",
+        metavar="JSON",
+        required=True,
+        type=str,
+        help="ptcp-qc dataset to test",
+    )
+
+    return parser.parse_args()
+
+
+def main() -> None:
+    """
+    main program
+    """
+    args = parse_args()
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+    logging.basicConfig(
+        stream=sys.stderr,
+        level=logging.INFO,
+        format="[%(asctime)s] %(levelname)s - %(message)s",
+    )
+    logging.info(args)
+
+    if args.command is None:
+        logging.error("Please specify a command: 'train' or 'test'")
+        sys.exit(1)
+
+    if args.command == "train":
+        logging.info("TRAINING MODE")
+        reg, y, pred = train(args.train_dir, args.print_outliers)
+        save_model(reg, args.output_file)
+
+        if args.plot_regression:
+            fig_filename = args.output_file + ".scatter.png"
+            fig, _ = plot_regression(y, pred)
+            logging.info("saving scatterplot to %s", fig_filename)
+            fig.savefig(fname=fig_filename, bbox_inches="tight", dpi=150)
+
+    elif args.command == "test":
+        logging.info("TEST MODE")
+        reg = load_model(args.model)
+        dataset = PureTargetDataset(args.dataset)
+        ans = evaluate(reg, dataset)
+
+        logging.info("writing updated ptcp-qc output")
+        ans = append_homology_to_ptcp_qc_report(ans, args.dataset)
+        print(json.dumps(ans, indent=2))
+
+
+if __name__ == "__main__":
+    main()

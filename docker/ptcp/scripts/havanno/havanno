@@ -1,0 +1,357 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+This program annotates paraphase VCFs to (1) detect pseudogenes (2) check if
+expected variants exist in genes and (3) report any additional variants in
+genes.
+"""
+
+import argparse
+import json
+import logging
+import os
+import sys
+
+from collections import namedtuple
+from typing import List
+
+__author__ = "Guilherme Sena"
+__version__ = "0.1"
+
+
+class PathoVariant:
+    """
+    A class that stores variant info relevant to this analysis, such as
+    chrom, pos, ref, alt, and whether it is PATHO or PSEUDO
+    """
+
+    def __init__(self, line) -> 'PathoVariant':
+        line = line.split()
+        self.chrom = line[0]
+        self.pos = int(line[1])
+        self.name = line[2]
+        self.ref = line[3]
+        self.alt = line[4]
+
+        the_info = line[7].split(";")
+        self.is_patho = False
+        self.is_pseudo = False
+        for x in the_info:
+            if "PATHO" in x:
+                self.is_patho = True
+            if "PSEUDO" in x:
+                self.is_pseudo = True
+
+    def ins_size(self) -> int:
+        """
+        gets the insertion size for a minimum value of 5
+        """
+        size = len(self.alt) - len(self.ref)
+        size = 0 if size < 5 else size
+        return size
+
+
+    def del_size(self) -> int:
+        """
+        gets the deletion size for a minimum value of 5
+        """
+        size = len(self.ref) - len(self.alt)
+        size = 0 if size < 5 else size
+        return size
+
+    def __str__(self) -> str:
+        """
+        used for hashing variants and finding them in
+        lists of very different VCFs
+        """
+        return f"{self.chrom}_{self.pos}_{self.ref}_{self.alt}"
+
+    def __hash__(self) -> int:
+        """
+        hash only uses chrom, pos and ref
+        """
+        return hash(str(self))
+
+    def __eq__(self, other) -> bool:
+        return (
+            hasattr(other, "chrom")
+            and hasattr(other, "pos")
+            and hasattr(other, "ref")
+            and self.chrom == other.chrom
+            and self.pos == other.pos
+            and self.ref == other.ref
+            and self.alt == other.alt
+        )
+
+
+class InvalidVariandListException(Exception):
+    """
+    Exception if we get a different chrom in the variant list
+    """
+
+    def __init__(self, msg) -> None:
+        self.message = msg
+        super().__init__(self.message)
+
+
+class InconsistentRefException(Exception):
+    """
+    Exception if we get a different REF in the variant list
+    """
+
+    def __init__(self, msg) -> None:
+        self.message = msg
+        super().__init__(self.message)
+
+
+
+class PathoVariantList:
+    """
+    A class to cllect variants and implement locus-specific logic on whether
+    the list is more aligned with a gene or a pseudogene
+    """
+
+    def __init__(self, hap_name) -> 'PathoVariantList':
+        """
+        Creates an empty variant list
+        """
+        self.variants = []
+        self.name = hap_name
+        self.chrom = None
+
+        # to be filled for every variant, not just pathogenic
+        self.total_ins_size = 0
+        self.total_del_size = 0
+
+
+    def add_variant(self, variant) -> 'PathoVariantList':
+        """
+        add the variant and ensures checks and makes any online logic
+        """
+        self.variants.append(variant)
+        if self.chrom is None:
+            self.chrom = variant.chrom
+        elif self.chrom != variant.chrom:
+            raise InvalidVariandListException(
+                f"expected chromosome {self.chrom}, but got {variant.chrom} instead"
+            )
+
+        # we do this here because indel size must be calculated based on
+        # all variation, not just the pathogenic one
+        self.total_ins_size += variant.ins_size()
+        self.total_del_size += variant.del_size()
+        return self
+
+    def transform_to_patho(self, patho_variants) -> 'PathoVariantList':
+        """
+        change the paraphase VCF entries to the pathogenic from the variant list
+        """
+        new_variants = []
+        for v in self.variants:
+            if v in patho_variants:
+                list_variant = patho_variants[v]
+                if v.ref != list_variant.ref:
+                    raise InconsistentRefException(
+                        f"Expected REF in VCF entry {v.chrom}_{v.pos} to be"
+                        "{list_variant.ref} but got {v.ref} instead"
+                    )
+                if v.alt == list_variant.alt:
+                    new_v = patho_variants[v]
+                    new_variants.append(new_v)
+        self.variants = new_variants
+        return self
+
+
+class VariantNotFoundException(Exception):
+    """
+    Exception if the variant queried is not in the pathogenic variant list
+    """
+
+    def __init__(self, msg) -> None:
+        self.message = msg
+        super().__init__(self.message)
+
+
+def read_hap_variants(vcf_file: str) -> List[PathoVariantList]:
+    """
+    Reads the paraphase VCF file and create a list of variants.
+    Also count the total deletion size for each haplotype which will
+    be used for GBA annotation
+    """
+    num_haps = 0
+
+    # an array of variant lists, one per haplotype
+    ans = []
+    with open(vcf_file, encoding="utf8") as f:
+        for line in f.readlines():
+            if line.startswith("##") or "LowQual" in line:
+                continue
+            if num_haps == 0 and line.startswith("#"):
+                vals = line.split()
+                num_haps = len(vals) - 9
+                hap_names = vals[-num_haps:]
+                ans = [PathoVariantList(hap_names[i]) for i in range(num_haps)]
+                continue
+
+            variant = PathoVariant(line)
+            haps = [x.split(":")[0] for x in line.split()[-num_haps:]]
+            haps = [int(x) if x != "." else -1 for x in haps]
+            for j, h in enumerate(haps):
+                if h == 1:
+                    ans[j] = ans[j].add_variant(variant)
+    return ans
+
+
+def read_variant_list(the_file: str) -> dict:
+    """
+    Read griffin variant list into a pair
+    """
+    variants = {}
+    with open(the_file, encoding="utf8") as f:
+        for line in f.readlines():
+            if line.startswith("#"):
+                continue
+            v = PathoVariant(line)
+            variants.update({v: v})
+    return dict(variants)
+
+
+def query_expected_variants(
+    expected: str, variants: dict, locus: str
+) -> List[PathoVariant]:
+    """
+    returns the variants found in the pathogenic variant list
+    """
+    if expected == "":
+        return []
+
+    # ensure we can use various notations for querying
+    def standardize_variant_name(the_name) -> str:
+        return (
+            the_name.replace(".", "")
+            .replace(">", "")
+            .replace("-", "")
+            .replace("_", "")
+            .lower()
+        )
+
+    locus = standardize_variant_name(locus)
+    variants = list(variants)  # need indices here
+    names_std = [standardize_variant_name(x.name) for x in variants]
+    expected = expected.split(",")
+    ans = [None] * len(expected)
+    for i, exp in enumerate(expected):
+        exp_std = standardize_variant_name(exp)
+        for j, variant_name in enumerate(names_std):
+            if exp_std in variant_name and locus in variant_name:
+                ans[i] = variants[j]
+                break
+        if ans[i] is None:
+            raise VariantNotFoundException(
+                f"variant not found in variant list: {exp_std}"
+            )
+    return ans
+
+
+def make_report(paraphase_haplos) -> None:
+    """
+    write the final JSON report to stdout
+    """
+    ans = {}
+
+    for haplo in paraphase_haplos:
+        haplo_ans = {}
+        patho_variants = [x.name for x in haplo.variants if x.is_patho]
+        pseudo_variants = [x.name for x in haplo.variants if x.is_pseudo]
+        haplo_ans["num_pathogenic_variants"] = len(patho_variants)
+        haplo_ans["num_pseudogene_variants"] = len(pseudo_variants)
+        haplo_ans["total_insertion_size"] = haplo.total_ins_size
+        haplo_ans["total_deletion_size"] = haplo.total_del_size
+        haplo_ans["variants"] = {}
+        haplo_ans["variants"]["pathogenic"] = patho_variants
+        haplo_ans["variants"]["pseudogene"] = pseudo_variants
+        ans[haplo.name] = haplo_ans
+    return ans
+
+def find_paraphase_vcfs(paraphase_dir: str) -> List[str]:
+    """
+    finds the paths to all VCF files produced by a paraphase run
+    """
+    ans = []
+    for d in os.listdir(paraphase_dir):
+        if d.endswith("vcfs"):
+            for f in os.listdir(os.path.join(paraphase_dir, d)):
+                if f.endswith(".vcf"):
+                    ans.append(os.path.join(paraphase_dir, d, f))
+
+    return ans
+def parse_args() -> argparse.ArgumentParser:
+    """
+    parse command line arguments
+    """
+    parser = argparse.ArgumentParser(
+        description="annotate paraphase outputs based on a variant list"
+    )
+    parser.add_argument(
+        "--variant-vcf",
+        metavar="VCF",
+        required=True,
+        type=str,
+        help="variant list VCF file with boolean flags PATHO and PSEUDO",
+    )
+    parser.add_argument(
+        "--paraphase-dir",
+        metavar="DIR",
+        required=True,
+        type=str,
+        help="Path to the paraphase output directory",
+    )
+    return parser.parse_args()
+
+
+
+
+def main() -> None:
+    """
+    main havanno program
+    """
+
+    args = parse_args()
+
+    # configure logger
+    logger = logging.getLogger("havanno")
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+    logging.basicConfig(
+        stream=sys.stderr,
+        level=logging.INFO,
+        format="[%(asctime)s] %(levelname)s - %(message)s",
+    )
+
+    logger.info("reading variant list from %s", args.variant_vcf)
+    patho_variants = read_variant_list(args.variant_vcf)
+
+    paraphase_vcfs = find_paraphase_vcfs(args.paraphase_dir)
+
+    ans = {}
+    ans["input_paraphase_dir"] = args.paraphase_dir
+    ans["input_variant_list"] = args.variant_vcf
+    ans["annotations"] = {}
+    for paraphase_vcf in paraphase_vcfs:
+        # get what variant it is from the paraphase VCF file name
+        # e.g., if it's output_gba.vcf, we get gba
+        locus = paraphase_vcf.replace(".vcf", "").split("_")[-1]
+
+        logger.info("reading paraphase variant list from %s", paraphase_vcf)
+        paraphase_haplos = read_hap_variants(paraphase_vcf)
+
+        logger.info("finding matches of paraphase variants in the VCF")
+        paraphase_haplos = [x.transform_to_patho(patho_variants) for x in paraphase_haplos]
+
+        logger.info("writing output and wrapping up...")
+        ans["annotations"][locus] = make_report(paraphase_haplos)
+
+    print(json.dumps(ans, indent=2))
+
+if __name__ == "__main__":
+    main()

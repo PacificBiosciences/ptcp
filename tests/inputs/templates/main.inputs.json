@@ -1,0 +1,18 @@
+{
+  "ptcp.sample_sheet": "File",
+  "ptcp.ref_fasta": "File",
+  "ptcp.ref_index": "File",
+  "ptcp.trgt_bed": "File",
+  "ptcp.paraphase_config_yaml": "File",
+  "ptcp.paraphase_annotation_vcf": "File?",
+  "ptcp.genome_version": "String",
+  "ptcp.ptcp_qc_bed": "File",
+  "ptcp.pt_linear_regression": "File?",
+  "ptcp.docker_smrttools": "String",
+  "ptcp.hifi_reads": [
+    "File"
+  ],
+  "ptcp.fail_reads": [
+    "File"
+  ]
+}
