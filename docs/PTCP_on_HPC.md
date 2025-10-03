@@ -48,10 +48,10 @@ It can be invoked as a Docker container or a Singularity image file. Instruction
 
 ### 2.1. Docker image of PTCP dependencies
 
-A pre-built Docker image of these dependencies can be found on quay.io at: `quay.io/pacbio/ptcp:3.1.1`. Below is an example `docker` command used to pull the image of PTCP dependencies for version 3.1.1:
+A pre-built Docker image of these dependencies can be found on quay.io at: `quay.io/pacbio/ptcp:3.1`. Below is an example `docker` command used to pull the image of PTCP dependencies for version 3.1:
 
 ```bash
-docker pull quay.io/pacbio/ptcp:3.1.1
+docker pull quay.io/pacbio/ptcp:3.1
 ```
 
 ### 2.2. Singularity image file of PTCP dependencies
@@ -59,7 +59,7 @@ docker pull quay.io/pacbio/ptcp:3.1.1
 You can build a `.sif` of PTCP dependencies for the version of PTCP you are installing by using `apptainer` (or `singularity`) to build the `.sif` from the Docker image hosted on quay.io. An example command is shown below:
 
 ```bash
-apptainer pull ptcp_3.1.1.sif docker://quay.io/pacbio/ptcp:3.1.1
+apptainer pull ptcp_3.1.sif docker://quay.io/pacbio/ptcp:3.1
 ```
 
 Once you have built the `.sif` file you should move it to the `ptcp` GitHub repo folder, like so:
@@ -68,7 +68,7 @@ Once you have built the `.sif` file you should move it to the `ptcp` GitHub repo
 cd /Path/to/ptcp
 mkdir miniwdl_singularity_cache
 cd miniwdl_singularity_cache
-mv /Path/to/Downloads/ptcp_3.1.1.sif .
+mv /Path/to/Downloads/ptcp_3.1.sif .
 ```
 
 ## 3. Gather input information

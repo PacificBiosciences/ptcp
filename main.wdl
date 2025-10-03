@@ -10,7 +10,7 @@ workflow ptcp {
     title: "PureTarget tandem repeat and hard gene workflow"
     summary: "Workflow for targeted analysis of tandem repeats and hard genes"
     description: "Workflow for analyzing hard genes and repeat regions using PacBio data. Combines multiple tools including TRGT for repeat genotyping and Paraphase for haplotype phasing and (small) variant calling."
-    version: "3.1.1"
+    version: "3.1.2"
   }
 
   parameter_meta {
@@ -164,7 +164,7 @@ workflow ptcp {
     File? pt_linear_regression
 
     String log_level        = "INFO"
-    String docker_smrttools = "quay.io/pacbio/smrttools@sha256:01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    String docker_smrttools = "quay.io/pacbio/ptcp:3.1"
   }
 
   call Common.collect_inputs {

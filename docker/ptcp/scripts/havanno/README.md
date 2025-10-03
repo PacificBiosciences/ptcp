@@ -155,4 +155,4 @@ options:
 
 It is up  to the user to define which variants they want to query. The
 PureTarget variant list used to assess the accuracy of the protocol is
-maintained [here](https://github.com/PacificBiosciences/ptcp/blob/2.2.0/meta/variant_list/variant_list_v3.vcf).
+maintained [here](https://github.com/PacificBiosciences/ptcp/tree/main/meta/variant_list).

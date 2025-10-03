@@ -86,8 +86,7 @@ workflow paraphase {
     File config_file
     String genome_version
     File? annotation_vcf
-    
-    String docker_smrttools = "quay.io/pacbio/smrttools@sha256:01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    String docker_smrttools
   }
 
   call run_paraphase {

@@ -6,7 +6,7 @@ The PacBio PureTarget Carrier Pipeline is a WDL-based workflow designed to genot
 
 ## Version information
 
-Current version: **3.1.1** (released 2025-09-17).
+Current version: **3.1.2** (released 2025-10-03).
 
 For a complete changelog, see the [changelog](CHANGELOG.md) or the git history.
 

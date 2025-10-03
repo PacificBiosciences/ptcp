@@ -86,7 +86,7 @@ workflow trgt {
 
     File trgt_bed
 
-    String docker_smrttools = "quay.io/pacbio/smrttools@sha256:01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    String docker_smrttools
   }
 
   call get_reads_overlapping_repeats {

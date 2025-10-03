@@ -2,6 +2,15 @@
 
 Any changes to PTCP are noted below:
 
+## [3.1.2] - 2025-10-03
+
+### Added
+- Add paraphase_annotation_vcf link to the template JSON
+
+### Fixed
+- Update to the current PTCP quay.io URL in the main.wdl and within documentation
+- Update dead link in Havanno documentation
+
 ## [3.1.1] - 2025-09-17
 
 ### Added
