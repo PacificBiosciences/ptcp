@@ -44,6 +44,7 @@ PTCP generates a comprehensive set of output files for each sample, providing an
 | `sawfish_vcf`                   | `Array[File]`        | Bgzipped VCF of SVs called by Sawfish                                                                         |                                                                                    |
 | `sawfish_vcf_tbi`               | `Array[File]`        | Tabix index for above                                                                                      |                                                                                    |
 | `ptcp_qc_reports`               | `Array[File]`        | JSONs of ptcp-qc per sample and aggregate reports                                                    |                                                                                    |
+| `ptcp_qc_csv_reports`           | `Array[File]`        | CSV summaries of ptcp-qc reports (coverage, trgt, paraphase, aggregate when available)               |                                                                                    |
 
 ## 2. Example outputs.json
 
@@ -85,13 +86,19 @@ Here's an example of what the workflow outputs look like for the Coriell sample 
   "ptcp.sawfish_minimap2_bam_bai": ["ptcp/out/HG00281.minimap2.bam.bai"],
   "ptcp.sawfish_vcf": ["ptcp/out/HG00281_sawfish/HG00281.sv.vcf.gz"],
   "ptcp.sawfish_vcf_tbi": ["ptcp/out/HG00281_sawfish/HG00281.sv.vcf.gz.tbi"],
-  "ptcp.ptcp_qc_reports": ["ptcp/out/ptcp_qc/qc.HG00281.json"]
+  "ptcp.ptcp_qc_reports": ["ptcp/out/ptcp_qc/qc.HG00281.json", "ptcp/out/ptcp_qc/qc.aggregate.json"],
+  "ptcp.ptcp_qc_csv_reports": [
+    "ptcp/out/ptcp_qc/qc.trgt.csv",
+    "ptcp/out/ptcp_qc/qc.paraphase.csv",
+    "ptcp/out/ptcp_qc/qc.coverage.csv",
+    "ptcp/out/ptcp_qc/qc.aggregate.csv"
+  ]
 }
 ```
 
 ## 3. Output file descriptions
 
-The following sections provide detailed descriptions of each output type. Some outputs are self-explanatory (such as index files), while others contain analysis results that require more in-depth explanation which will primarily be in context of sample **HG00281** with some exceptions to highlight specific outputs.
+The following sections provide detailed descriptions of each output type. Some outputs are self-explanatory (such as index files), while others contain analysis results that require more in-depth explanation, this will primarily be in context of sample **HG00281**, with some exceptions to highlight specific outputs.
 
 ### 3.1. Sample information
 - **`sample_names`** (`Array[String]`): Contains the sample identifiers in the same order as all other output arrays. This ensures you can correlate outputs with the correct sample.
@@ -130,7 +137,7 @@ Consider this *AFF2* locus record from sample **HG00281**:
 chrX	148500604	.	TGCCGCGGCCGCCGCCGCCGCCTGTGCAGCCGCTGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCTGCCGCCCCGGCTGCCGCGCCGCGCCGCTGCCTCTGCCCCGGCCGCCCCCGCCGCCGCTGCCGCCGCCG	TGCCGCGGCCGCCGCCGCCGCCTGTGCAGCCGCTGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCTGCCGCCCCGGCTGCCGCGCCGCGCCGCTGCCTCTGCCCCGGCCGCCCCCGCCGCCGCTGCCGCCGCCG,TGCCGCGGCCGCCGCCGCCGCCTGTGCAGCCGCTGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCCGCTGCCGCCCCGGCTGCCGCGCCGCGCCGCTGCCTCTGCCCCGGCCGCCCCCGCCGCCGCTGCCGCCGCCG	.	.	TRID=FRAXE_AFF2;END=148500753;MOTIFS=GCC;STRUC=<TR>	GT:AL:ALLR:SD:MC:MS:AP:AM	1/2:143,167:140-149,160-176:302,312:34,42:0(0-3)_0(6-21)_0(27-30)_0(33-72)_0(75-81)_0(87-90)_0(92-95)_0(97-100)_0(103-106)_0(109-112)_0(115-121)_0(124-130)_0(133-142),0(0-3)_0(6-21)_0(27-30)_0(33-96)_0(99-105)_0(111-114)_0(116-119)_0(121-124)_0(127-130)_0(133-136)_0(139-145)_0(148-154)_0(157-166):0.857143,0.877193:0.10,0.76
 ```
 
-The VCF record spans **chrX:148,500,604–148,500,753** at the locus *FRAXE_AFF2*, which has a repeat motif set of `MOTIFS=GCC`. The genotype is `GT=1/2`, indicating that both alleles are non-reference and correspond to the two alternate haplotypes (the long reference allele is listed as REF but is not carried in this sample).
+The VCF record spans **chrX:148,500,604–148,500,753** at the locus *FRAXE_AFF2*, which has a repeat motif set of `MOTIFS=GCC`. The genotype is `GT=1/2`, indicating that both alleles are non-reference and correspond to the two alternate alleles (the long reference allele is listed as REF but is not carried in this sample).
 
 TRGT reports the following FORMAT fields for the two alleles:
 
@@ -147,7 +154,7 @@ The motif counts (`MC=34,42`) correspond to 34 and 42 copies of the GCC unit, wh
 
 - **`trgt_spanning_bam`** (`Array[File]`): BAM files containing reads that span across tandem repeat regions.
 
-The TRGT *spanning BAM* contains only the reads used for genotyping at each targeted locus, trimmed to the repeat plus 50 bp of flanking sequence (default, configurable in TRGT). These BAMs are intended for close inspection (e.g., in IGV) and for downstream tooling such as TRGT plotting. Unlike the raw *repeat_reads* BAM, they carry per-read annotations that link each read back to the locus and allele inferred by TRGT. Among these are the `TR` tag, which identifies the locus, and the `AL` tag, which records the allele assignment (`0` for the shorter allele, `1` for the longer).  Note that the `trgt_spanning_bam` is always a strict subset of reads from either `reads_overlapping_repeats` or the original `mapped_bam`, filtered to retain only those that fully span the locus. Because each read carries its `TR` tag, the BAM can be easily filtered for specific loci of interest.
+The TRGT *spanning BAM* contains only the reads used for genotyping at each targeted locus, trimmed to the repeat plus 50 bp of flanking sequence (default, configurable in TRGT). These BAMs are intended for close inspection (e.g., in IGV) and for downstream tooling such as TRGT plotting. Unlike the broader `reads_overlapping_repeats` BAM, they carry per-read annotations that link each read back to the locus and allele inferred by TRGT. Among these are the `TR` tag, which identifies the locus, and the `AL` tag, which records the allele assignment (`0` for the shorter allele, `1` for the longer).  Note that the `trgt_spanning_bam` is always a strict subset of reads from either `reads_overlapping_repeats` or the original `mapped_bam`, filtered to retain only those that fully span the locus. Because each read carries its `TR` tag, the BAM can be easily filtered for specific loci of interest.
 
 As an example, consider the two reads below from the *AFF2* locus in HG00281, which correspond to alleles 0 and 1, respectively:
 
@@ -212,19 +219,19 @@ For **HG00281**, loading the Paraphase BAM for the SMN family into IGV and color
 | :---: |
 | IGV view of the Paraphase-phased BAM for the SMN family in this sample. Four haplotypes are visible: one copy of *SMN1* and three copies of *SMN2*. Distinct SNPs and indels mark each haplotype, confirming the consistency of phasing. |
 
-One of these haplotypes corresponds to *SMN1*, while the other three correspond to *SMN2*, which indicates that the sample carries one copy of *SMN1* and three copies of *SMN2* (note: always refer to the `paraphase_json` to confirm this!). Each haplotype shows a characteristic combination of SNPs and indels that distinguish it from the others. These variant patterns act as fingerprints, making it straightforward to check the consistency of phasing: reads assigned to the same haplotype consistently carry the same set of variants, while differences across haplotypes separate the *SMN1* copy from the three *SMN2* copies. This provides both copy number resolution and evidence for accurate phasing. Note that certain HiFi reads may appear multiple times (by QNAME) in the BAM. These are different fragments of the underlying HiFi read, such repeating reads correspond to different haplotypes. For instance you may have a read occurring twice where one corresponds to *HBA* haplotype hba_hba2hap1 and the other to hba_hba1hap1.
+One of these haplotypes corresponds to *SMN1*, while the other three correspond to *SMN2*, which indicates that the sample carries one copy of *SMN1* and three copies of *SMN2* (note: always refer to the `paraphase_json` to confirm this). Each haplotype shows a characteristic combination of SNPs and indels that distinguish it from the others. These variant patterns act as fingerprints, making it straightforward to check the consistency of phasing: reads assigned to the same haplotype consistently carry the same set of variants, while differences across haplotypes separate the *SMN1* copy from the three *SMN2* copies. This provides both copy number resolution and evidence for accurate phasing. Note that certain HiFi reads may appear multiple times (by QNAME) in the BAM. These are different fragments of the underlying HiFi read, such repeating reads correspond to different haplotypes. For instance you may have a read occurring twice where one corresponds to *HBA* haplotype hba_hba2hap1 and the other to hba_hba1hap1.
 
 - **`paraphase_bam_bai`** (`Array[File]`): Index files for the Paraphase BAM files.
 
 - **`paraphase_json`** (`Array[File]`): Structured summaries of haplotypes, copy number, and variant sets per gene family and sample
 
-The JSON output is the richest of all Paraphase outputs, here we restrict only to the essential fields. At the top level, the file is organized as a map keyed by gene name (for example, *SMN* or *HBA*). Each gene entry includes core fields: `total_cn` gives the total copy number detected, `final_haplotypes` lists the resolved haplotypes after phasing, and `two_copy_haplotypes` marks any haplotypes inferred to have copy number two rather than one. Certain gene families have additional, family-specific fields. For *HBA*, the JSON includes a `genotype` string (e.g. "aa/aa" or "a-/αα") along with a flag `sv_called` indicating whether a structural variant was detected. For *SMN*, Paraphase records the copy numbers of *SMN1* and SMN2 separately (`smn1_cn`, `smn2_cn`), and it splits the haplotypes into `smn1_haplotypes` and `smn2_haplotypes` for clarity in addition to the full `final_haplotypes` list.
+The JSON output is the richest of all Paraphase outputs, here we restrict only to the essential fields. At the top level, the file is organized as a map keyed by gene family name (for example, *SMN* or *HBA*). Each gene entry includes core fields: `total_cn` gives the total copy number detected, `final_haplotypes` lists the resolved haplotypes after phasing, and `two_copy_haplotypes` marks any haplotypes inferred to have copy number two rather than one. Certain gene families have additional, family-specific fields. For *HBA*, the JSON includes a `genotype` string (e.g. "aa/aa" or "a-/αα") along with a flag `sv_called` indicating whether a structural variant was detected. For *SMN*, Paraphase records the copy numbers of *SMN1* and SMN2 separately (`smn1_cn`, `smn2_cn`), and it splits the haplotypes into `smn1_haplotypes` and `smn2_haplotypes` for clarity in addition to the full `final_haplotypes` list.
 
 For all other fields, including haplotype support metrics, variant lists, breakpoints, and advanced annotations, please refer to the [full Paraphase documentation](https://github.com/PacificBiosciences/paraphase).
 
 If we consider the (minimal) *SMN1* output for **HG00281** from the Paraphase JSON we observe the following:
 
-```
+```json
 "smn1": {
     "smn1_cn": 1,
     "smn2_cn": 3,
@@ -247,7 +254,7 @@ The reported copy numbers are `smn1_cn = 1` and `smn2_cn = 3`, with read counts 
 
 For *GBA*, Paraphase can detect copy number variations where the total copy number may exceed the number of unique haplotypes resolved. This occurs when identical haplotypes are present in multiple copies, which Paraphase infers through read depth analysis.
 
-```
+```json
 "gba": {
     "total_cn": 4,
     "final_haplotypes": {
@@ -264,12 +271,13 @@ For *GBA*, Paraphase can detect copy number variations where the total copy numb
 
 In this example, four total copies of *GBA* are detected (`total_cn = 4`), but only three unique haplotypes are resolved. The `two_copy_haplotypes` field indicates that `gba_hap2` is present in two copies, accounting for the difference between the total copy number (4) and the number of unique haplotypes (3). This depth-based adjustment allows Paraphase to accurately represent copy number variations even when haplotypes are identical.
 
-In *HBA* we want to detect the presence of structural variations. Paraphase can report these in the `genotype` and `sv_called` fields. The HBA genotype notation follows standard alpha-thalassemia conventions where `a` represents a normal alpha-globin gene and `-` represents a deleted alpha-globin gene. Paraphase reports structural variants (3p7del, 3p7dup, 4p2del, or 4p2dup) and their coordinates:
+In *HBA* we want to be able to detect the presence of structural variations. Paraphase can report these in the `genotype` and `sv_called` fields. The HBA genotype notation follows standard alpha-thalassemia conventions where `a` represents a normal alpha-globin gene and `-` represents a deleted alpha-globin gene. Paraphase reports the known structural variants (SVs), 3p7del, 3p7dup, 4p2del, or 4p2dup and their coordinates:
 -  **3p7del/3p7dup**: 3.7 kb deletion/duplication of one alpha-globin gene
 - **4p2del/4p2dup**: 4.2 kb deletion/duplication of one alpha-globin gene.
 
 For example, a 3p7del structural variant may be reported as:
-```
+
+```json
 "hba": {
     "total_cn": 3,
     "final_haplotypes": {
@@ -289,7 +297,7 @@ Here the genotype `-a/aa` indicates one deleted alpha-globin gene (`-`) paired w
 
 Conversely, a 3p7dup structural variant may be reported as:
 
-```
+```json
 "hba": {
     "total_cn": 5,
     "final_haplotypes": {
@@ -312,7 +320,7 @@ Conversely, a 3p7dup structural variant may be reported as:
 
 With the duplication, the genotype `aa/aaa` indicates two normal alpha-globin genes (`aa`) on one chromosome and three normal genes (`aaa`) on the other chromosome, resulting in a total of five alpha-globin genes. The `sv_called` field identifies the specific haplotype carrying the 3p7dup duplication with its genomic coordinates.
 
-For larger structural variants (such as SEA deletion, MED deletion, or other complex rearrangements), Sawfish provides specialized analysis optimized for detecting these more extensive variations. While Paraphase excels at identifying the smaller, well-characterized structural variants in the HBA region, Sawfish is a general purpose structural variant caller and can more reliably detect and characterize larger structural variants. This complementary analysis ensures comprehensive coverage of structural variations in *HBA*, as described in the [Structural variant detection section](#37-structural-variant-detection-sawfish).
+While Paraphase can identify smaller, well-characterized SVs in the HBA region, which can be haplotype resolved. Larger SVs, such as the SEA deletion, MED deletion, or other complex rearrangements, require Sawfish, a general purpose SV caller which can reliably detect and characterize these larger SVs. This complementary analysis allows for coverage of SVs in *HBA*, as described in the [Structural variant detection section](#37-structural-variant-detection-sawfish).
 
 - **`paraphase_vcfs`** (`Array[Array[File]]`): VCF files containing small variant calls, with one VCF file generated for each targeted region (gene family).
 
@@ -320,7 +328,7 @@ Paraphase produces a VCF file for each region per sample. As genes of the same f
 
 In a Paraphase VCF, the sample column is repurposed to report haplotypes (gene copies) found in a region (gene family). Hence, each column after FORMAT is a haplotype, not a biological sample. The haplotype names are consistent with those reported in the `paraphase_json` file.
 
-In the INFO field, Paraphase reports the boundaries of haplotypes with `HPBOUND`, which is a pair of numbers representing the start and end coordinates of the haplotype, i.e. phase block. In the case of complete phasing, these numbers represent the start and end of the region that Paraphase is designed to phase. Otherwise, sometimes Paraphase can only phase part of the region and the start and end of the phase blocks are reflected by these numbers. The coordinates are sometimes prefixed or appended by the word `truncated`, which means that the haplotypes are clipped right before or after. This marks the end of the homology and these truncated haplotypes are often those from the paralog or the pseudogene. The `HPBOUND` field is useful when annotating variants in Paraphase VCFs as the boundaries and the truncated status can be compared against the gene/transcript coordinates to determine if we have full information for the complete gene.
+In the INFO field, Paraphase reports the boundaries of haplotypes with `HPBOUND`, which is a pair of numbers representing the start and end coordinates of the haplotype, i.e., phase block. In the case of complete phasing, these numbers represent the start and end of the region that Paraphase is designed to phase. Otherwise, sometimes Paraphase can only phase part of the region and the start and end of the phase blocks are reflected by these numbers. The coordinates are sometimes prefixed or appended by the word `truncated`, which means that the haplotypes are clipped right before or after. This marks the end of the homology and these truncated haplotypes are often those from the paralog or the pseudogene. The `HPBOUND` field is useful when annotating variants in Paraphase VCFs as the boundaries and the truncated status can be compared against the gene/transcript coordinates to determine if we have full information for the complete gene.
 
 For example, in sample **HG00281**, Paraphase reports four copies of *CYP21*, where the VCF reflects this with: `cyp21_hap1`, `cyp21_hap2`, `cyp21_hap3`, and `cyp21_hap4`:
 
@@ -350,7 +358,7 @@ chr6	32038438	.	C	C	.	LowQual	HPBOUND=...	GT:DP:AD	0:43:43,0	0:46:46,0	0:47:47,0
 chr6	32038439	.	T	T	.	LowQual	HPBOUND=...	GT:DP:AD	0:43:43,0	0:47:47,0	0:47:47,0	.:40:0,40
 chr6	32038440	.	G	G	.	LowQual	HPBOUND=...	GT:DP:AD	0:44:44,0	0:46:46,0	0:47:47,0	.:41:1,40
 ```
-The 3 bp deletion in haplotype 4 causes the subsequent three positions to be 'unobserved' (no-calls) for that haplotype, while haplotypes 1-3 remain reference calls. At position `32038437`, haplotype 4 has a variant call (`GT 1`), while haplotypes 1-3 are reference calls (`GT 0`), and the site passes filters. However, at positions `32038438`, `32038439`, and `32038440`, haplotype 4 has no-calls (`GT .`), leading to `LowQual` flags for these sites. This meets the second condition: "Any site where at least one haplotype has a no-call."
+The 3 bp deletion in haplotype 4 causes the subsequent three positions to be 'unobserved' (no-calls) for that haplotype, while haplotypes 1-3 remain reference calls. At position `32038437`, haplotype 4 has a variant call (`GT 1`), while haplotypes 1-3 are reference calls (`GT 0`), and the site passes filters. However, at positions `32038438`, `32038439`, and `32038440`, haplotype 4 has no-calls (`GT .`), leading to `LowQual` flags for these sites. This meets the second condition: "Any site where at least one haplotype has a no-call.".
 
 Note that reference calls in all haplotypes are not written to the VCF:
 
@@ -363,7 +371,7 @@ These lines show sites that *are* written to the VCF because they contain at lea
 ### 3.5. Variant annotation (havanno)
 - **`havanno_json`** (`Array[File?]`): JSON files that annotate Paraphase output with variants of interest. These files provide additional context for detected variants, e.g., annotate the number of pathogenic or pseudogene-specific variants on a haplotype.
 
-By scanning Paraphase VCF files for a curated set of variants of interest havanno emits JSON summaries per gene and haplotype. It takes as input the Paraphase VCF files (already phased into haplotypes) and a catalog VCF where each record is labeled as pathogenic, pseudogene, or both (via INFO tags), provided in the `meta/` directory. Havanno matches exact (CHROM, POS, REF, ALT) coordinates against the Paraphase VCF and collects hits per haplotype. For example, an input catalog VCF may be defined as:
+By scanning Paraphase VCF files for a curated set of variants of interest, havanno emits JSON summaries per gene and haplotype. It takes as input the Paraphase VCF files (already phased into haplotypes) and a catalog VCF where each record is labeled as pathogenic, pseudogene, or both (via INFO tags), provided in the `meta/` directory. Havanno matches exact (CHROM, POS, REF, ALT) coordinates against the Paraphase VCF and collects hits per haplotype. For example, an input catalog VCF may be defined as:
 
 ```
 ##fileformat=VCFv4.2
@@ -413,7 +421,7 @@ When interpreting havanno output it is best to focus on the variant lists themse
 
 - **`f8_json`** (`Array[File]`): JSON files containing evidence supporting F8 inversion calls, including supporting read information, spans, and confidence metrics.
 
-PTCP uses a specialized method which analyzes the Paraphase re-aligned reads to detect large *F8* inversions.
+PTCP uses a specialized method to detect large *F8* inversions by analyzing the Paraphase re-aligned reads.
 
 The F8 inversion detection algorithm examines read alignment patterns and clipping signatures within predefined genomic regions for intron 1 and intron 22 inversions. Reads are classified based on their alignment coordinates and soft-clipping patterns relative to expected breakpoint regions. The algorithm looks for characteristic patterns: reads spanning the outer regions (label "00"), reads from inner regions with expected clipping (label "11"), and reads spanning breakpoints with asymmetric clipping (labels "01" and "10"). The presence and abundance of these different read types determines the inversion genotype.
 
@@ -495,15 +503,15 @@ For **HG00281**, the structure is:
 ```
 
 ### 3.7. Structural variant detection (Sawfish)
-- **`sawfish_minimap2_bam`** (`Array[File]`): BAM files containing reads aligned with minimap2 specifically for Sawfish analysis. These files focus on a window around the HBA region and the alignment is optimized for structural variant detection.
+- **`sawfish_minimap2_bam`** (`Array[File]`): BAM files containing reads aligned with minimap2 specifically for Sawfish analysis. These files focus on a window around the HBA region and the alignment is optimized for SV detection.
 
 - **`sawfish_minimap2_bam_bai`** (`Array[File]`): Index files for the Sawfish minimap2 BAM files.
 
-- **`sawfish_vcf`** (`Array[File]`): VCF files containing structural variant calls detected by Sawfish.
+- **`sawfish_vcf`** (`Array[File]`): VCF files containing SV calls detected by Sawfish.
 
 - **`sawfish_vcf_tbi`** (`Array[File]`): Index files for the Sawfish VCF files.
 
-Sawfish is a structural variant caller that detects large-scale genomic rearrangements including deletions, duplications, inversions, and translocations. The VCF output follows the standard VCF format with additional INFO and FORMAT fields specific to structural variant calling.
+Sawfish is a SV caller that detects large-scale genomic rearrangements including deletions, duplications, inversions, and translocations. The VCF output follows the standard VCF format with additional INFO and FORMAT fields specific to SV calling.
 
 For example a sample with the SEA deletion in the *HBA* (on chr16) region is reported as:
 
@@ -513,20 +521,25 @@ chr16	165396	sawfish:0:5:0:0	CTAGCC...	C	999	PASS	SVTYPE=DEL;END=184700;SVLEN=19
 
 The start position of the deletion is `165396`, `CTAGCC...` represents the reference sequence (truncated here), and `C` is the alternate allele after deletion. The `SVTYPE=DEL` specifies this is a deletion, `END=184700` gives the end position, and `SVLEN=19304` indicates a deletion length of 19,304 base pairs. The `SVCLAIM=J` indicates adjacency-based evidence, `GT=0/1` shows a heterozygous genotype (one reference, one alternate allele), and `AD=82,186` provides allelic depth with 82 reads supporting the reference and 186 supporting the alternate allele.
 
-For comprehensive *HBA* analysis, you must examine _both_ Paraphase and Sawfish outputs. Paraphase can detect smaller structural variants (3.7kb and 4.2kb deletions/duplications) in *HBA* and provides haplotype information, while Sawfish is a general purpose structural variant caller which can detect larger structural variants (like SEA, MED, and others), that may be missed by Paraphase. The complementary nature of these tools ensures comprehensive coverage of structural variations in the HBA region. Always cross-reference findings from both tools.
+For comprehensive *HBA* analysis, you must examine _both_ Paraphase and Sawfish outputs. Paraphase can detect smaller structural variants (3.7kb and 4.2kb deletions/duplications) in *HBA* and provides haplotype information, while Sawfish is a general purpose structural variant caller which can detect larger structural variants (like SEA, MED, and others), that may be missed by Paraphase. The complementary nature of these tools ensures coverage of structural variations in the HBA region. Always cross-examine the findings from both tools.
 
 For more information about Sawfish VCF format, filtering options, and interpretation guidelines, refer to the [Sawfish documentation](https://github.com/PacificBiosciences/sawfish/blob/main/docs/user_guide.md).
 
 ### 3.8. Quality control (ptcp-qc)
 - **`ptcp_qc_reports`** (`Array[File]`): JSON files containing comprehensive quality control metrics for each sample, plus an aggregate report across all samples. These reports include coverage statistics, alignment quality metrics, analysis-specific quality indicators, and expanded analysis on particular characterizations such as HBA, SMN1/2, and F8.
+- **`ptcp_qc_csv_reports`** (`Array[File]`): CSV summaries of the ptcp-qc reports, produced after ptcp-qc analysis. When both per-sample and aggregate JSONs are provided, outputs include `qc.trgt.csv`, `qc.paraphase.csv`, `qc.coverage.csv`, and `qc.aggregate.csv`.
 
-The [`ptcp-qc`](https://github.com/PacificBiosciences/ptcp-qc) tool serves as the final integration step in the PTCP workflow, consolidating information from all upstream analyses. It processes outputs from pbmm2 (mapped BAM), TRGT (VCF and spanning BAM), Paraphase (JSON and BAM), F8 inversion analysis, Sawfish, and optionally SMN homology correction to generate comprehensive quality control reports. The ptcp-qc tool automatically processes outputs from all upstream PTCP analyses, including mapped BAM files, TRGT results, Paraphase outputs, F8 inversion analysis, Sawfish results, and optionally SMN homology correction data.
+The [`ptcp-qc`](https://github.com/PacificBiosciences/ptcp-qc) tool serves as the final integration step in the PTCP workflow, consolidating information from all upstream analyses. It processes outputs from pbmm2 (mapped BAM), TRGT (VCF and spanning BAM), Paraphase (JSON and BAM), F8 inversion analysis, Sawfish, and optionally SMN homology correction to generate comprehensive quality control reports. The ptcp-qc tool automatically processes outputs from all upstream PTCP analyses.
 
-Outputs from TRGT and Paraphase, if provided, are matched to  predefined loci in a bed file (`meta/ptcp-qc`). Each locus consolidates available reads, genotype calls, and phasing results. Reads are initially categorized based on loci defined in the BED file, with additional special categories for "off-target" and "unmapped" reads. Due to minor extraction differences between tools, some reads initially labeled as "off-target" may be reassigned based on their actual usage by TRGT or Paraphase. 
+Important: ptcp-qc JSON/CSV outputs are summaries intended for QC triage and reporting. For any surprising or relevant call, validate it in the primary outputs. For example, if `qc.trgt.csv`/`qc.trgt.json` suggests a large tandem repeat expansion at a locus, inspect the corresponding locus record in `trgt_vcf`, review the TRGT allele/waterfall plots, and (when needed) view the `trgt_spanning_bam` in IGV to confirm read support and allele structure.
+
+Some workflows prefer CSV summaries. The PTCP workflow generates these CSVs automatically (available in the PTCP container as `ptcpqc_json_to_csv.py`). The converter auto-detects aggregate vs. per-sample JSONs. Note that coverage-based and duplicate metrics require the aggregate context, so those columns are only populated when `sample_stats` are present in the JSON.
+
+Outputs from TRGT and Paraphase, if provided, are matched to predefined loci in the ptcp-qc targets BED file provided (`ptcp_qc_bed`). Each locus consolidates available reads, genotype calls, and phasing results. Reads are initially categorized based on loci defined in the BED file, with additional special categories for "off-target" and "unmapped" reads. Due to minor extraction differences between tools, some reads initially labeled as "off-target" may be reassigned based on their actual usage by TRGT or Paraphase.
 
 The output from ptcp-qc is organized hierarchically, with top-level grouping by locus (e.g., *GBA*), subdivision by sublocus (e.g., functional gene and pseudogene), then further segmentation based on available TRGT or Paraphase annotations. This structure allows for stratification of reads at multiple granularities. ptcp-qc generates structured JSON reports containing sample metadata (name, genome version, timestamps, tool version), summary statistics (total reads, on-target rates, coverage metrics, sex ratios), locus-specific results with analysis per target locus including coverage and variant information, and quality metrics such as coverage distributions and read quality statistics.
 
-The ptcp-qc output structure reflects the fundamental difference between how TRGT and Paraphase analyze genomic regions. TRGT loci (tandem repeats) typically represent single genomic regions where all reads from that locus are used for analysis. In contrast, Paraphase loci often have subloci representing functional genes and pseudogenes, where reads from both the functional gene copy and the pseudogene copy are used together for phasing and copy number analysis.
+The ptcp-qc output structure reflects the fundamental difference between how TRGT and Paraphase analyze genomic regions. Tandem repeat loci typically represent single genomic regions where all reads from that locus are used for analysis. In contrast, Paraphase loci often have subloci representing functional genes and pseudogenes, where reads from both the functional gene copy and the pseudogene copy are used together for phasing and copy number analysis.
 
 For example, the *ATXN1* locus (analyzed by TRGT) appears as a single entity in the ptcp-qc output, with all reads from that region contributing to the tandem repeat genotyping. Conversely, the *CYP21* locus (analyzed by Paraphase) is organized with subloci for the functional gene (*CYP21A2*) and pseudogene (*CYP21A1P*), where reads from both regions are combined for comprehensive haplotype phasing and copy number determination. The hierarchical organization allows ptcp-qc to provide stratification of reads at multiple granularities, enabling precise quality control and genotyping analysis that respects the analytical approach of each tool.
 
@@ -534,16 +547,16 @@ For example, the *ATXN1* locus (analyzed by TRGT) appears as a single entity in 
 | :---: |
 | Comparison of ptcp-qc hierarchical organization for TRGT vs Paraphase loci. The mapped BAM contains all reads aligned to the reference genome. For TRGT loci (left), reads from a single genomic region are extracted and analyzed together for tandem repeat genotyping. For Paraphase loci (right), reads from multiple subloci (functional gene and pseudogene) are combined for comprehensive haplotype phasing and copy number analysis.|
 
-
 The hierarchical structure first reports sample-level statistics, then drills down to individual loci. Each locus can have subgroups (e.g., functional gene vs. pseudogene), and within each subgroup, tool-specific results are reported when available.
 
 Sample-level summary from **HG00281**:
 ```json
 {
+  "report_type": "sample",
   "sample_name": "HG00281",
-  "genome_version": "38",
+  "genome_version": "hg38",
   "targets_bed": "ptcp-qc.GRCh38.bed",
-  "ptcp-qc_version": "0.8.0",
+  "ptcp-qc_version": "1.0.0",
   "stats": {
     "total_reads": 54582,
     "on_target": {
@@ -575,17 +588,17 @@ Sample-level summary from **HG00281**:
       }
     },
     "sex_ratios": {
-      "ratio_x_auto": 0.89696,
-      "ratio_y_auto": 0.01796,
-      "cov_x": 0.08322,
-      "cov_y": 0.00167,
-      "baseline_auto": 0.09278
+      "ratio_x_auto": 0.897,
+      "ratio_y_auto": 0.018,
+      "cov_x": 0.0832,
+      "cov_y": 0.0017,
+      "baseline_auto": 0.0928
     }
   }
 }
 ```
 
-The locus-level results show the hierarchical organization (abbreviated here). For example, the *GBA* locus contains both functional gene and pseudogene subgroups:
+The locus-level results show the hierarchical organization (abbreviated here). For example, the *GBA* locus has both a functional gene and pseudogene subgroup:
 
 ```json
 "gba": {
@@ -593,7 +606,12 @@ The locus-level results show the hierarchical organization (abbreviated here). F
   "reads": {
     "n": 680,
     "hifi": 621,
-    "fail": 59
+    "fail": 59,
+    "stats": {
+      "read_quality": { ... },
+      "read_passes": { ... },
+      "read_length": { ... }
+    }
   },
   "subgroups": {
     "gba_gene_v1": {
@@ -601,17 +619,7 @@ The locus-level results show the hierarchical organization (abbreviated here). F
         "n": 319,
         "hifi": 288,
         "fail": 31,
-        "stats": {
-          "read_quality": {
-            ...
-          },
-          "read_passes": {
-            ...
-          },
-          "read_length": {
-            ...
-          }
-        }
+        "stats": { ... }
       }
     },
     "gba_gene_v1_pseudogene": {
@@ -619,9 +627,7 @@ The locus-level results show the hierarchical organization (abbreviated here). F
         "n": ...,
         "hifi": ...,
         "fail": ...,
-        "stats": {
-          ...
-        }
+        "stats": { ... }
       }
     }
   },
@@ -636,20 +642,16 @@ The locus-level results show the hierarchical organization (abbreviated here). F
           "unique_count": 140,
           "fractional_count": 140.0
         },
-        "gba_hap2": {
-          ...
-        },
-        "gba_hap3": {
-          ...
-        },
-        "gba_hap4": {
-          ...
-        }
+        "gba_hap2": { ... },
+        "gba_hap3": { ... },
+        "gba_hap4": { ... }
       }
     }
   }
 }
 ```
+
+Paraphase reports several read-count fields at the locus and haplotype level. Because a read can sometimes support multiple haplotypes (for example in highly homologous regions), Paraphase provides three complementary count types per haplotype: **`total_count`**: Total number of read assignments to this haplotype. Reads that support multiple haplotypes are counted once in each supported haplotype. The sum of `total_count` across haplotypes equals `total_reads`. **`unique_count`**: Number of reads uniquely assigned to this haplotype (reads that support only this haplotype). **`fractional_count`**: Effective read support after distributing shared reads fractionally across the haplotypes they support (each shared read contributes `1/N` to each of `N` haplotypes). This value can be non-integer, and the sum of `fractional_count` across haplotypes equals `unique_reads`. When reads are unambiguous (no sharing across haplotypes), `total_count`, `unique_count`, and `fractional_count` will be identical (as in the example above).
 
 Some analysis is gene-specific, for instance the F8 locus includes inversion detection results with read classification and haplotype information from the F8 calling method:
 
@@ -682,7 +684,7 @@ Some analysis is gene-specific, for instance the F8 locus includes inversion det
 }
 ```
 
-When SMN homology weights are provided, the additional analysis to correct for potential homology between SMN1 and SMN2 is written to the ptcp-qc output. This essentially corrects the Paraphase-reported copy number values for SMN by accounting for the high sequence similarity between SMN1 and SMN2:
+When SMN homology weights are provided, the additional analysis to correct for potential homology between SMN1 and SMN2 is written to the ptcp-qc output. This can correct the Paraphase-reported copy number values for SMN by accounting for the high sequence similarity between SMN1 and SMN2 which is necesssary whenever there is full homology between SMN1 and SMN2:
 
 ```json
 "smn1": {
@@ -712,60 +714,73 @@ When SMN homology weights are provided, the additional analysis to correct for p
 }
 ```
 
-The *HBA* locus includes structural variant detection with multiple subgroups and haplotype analysis. Here, ptcp-qc reports structural variants called by both Paraphase and Sawfish, and provides a `genotype_adjusted` field that corrects the Paraphase-reported genotype based on Sawfish findings. Since Paraphase cannot detect large structural variants (other than 3p7 and 4p2), a SEA deletion would result in an "aa/aa" genotype by Paraphase, whereas the adjusted genotype would correctly show "--/aa" (where "--" represents the deleted alpha-globin gene):
+The *HBA* locus includes structural variant detection with multiple subgroups and haplotype analysis. Here, ptcp-qc reports structural variants called by both Paraphase and Sawfish, where a `sawfish_results` is added to the *HBA* group as well as a `genotype_adjusted` field in `paraphase_results` to possibly correct the Paraphase-reported genotype based on Sawfish findings.
 
 ```json
 "hba": {
+  "group": "hba",
+  "reads": { ... },
   "subgroups": {
-    "hba_4.2_3.7": {
-      "reads": {
-        "n": 246,
-        "hifi": 223,
-        "fail": 23
-      }
-    },
-    "hba_MEDII_BRIT": {
-      "reads": {
-        "n": 20,
-        "hifi": 19,
-        "fail": 1
-      }
-    },
-    "hba_alpha20.5_BRIT": {
-      "reads": {
-        "n": 172,
-        "hifi": 157,
-        "fail": 15
-      }
-    }
+    "hba_4.2_3.7": { ... },
+    "hba_MEDII_BRIT": { ... },
+    "hba_alpha20.5_BRIT": { ... }
   },
   "paraphase_results": {
     "hba": {
-      "total_reads": 662,
-      "unique_reads": 225,
-      "total_cn": 4,
-      "genotype": "aa/aa",
-      "genotype_adjusted": "aa/aa",
+      "total_reads": 584,
+      "unique_reads": 258,
+      "total_cn": 3,
+      "genotype": "-a/aa",
+      "genotype_adjusted": "-a/aa",
+      "sv_calls": {
+        "hba_3p7delhap1": "3p7del,chr16:172240-176044"
+      },
       "haplotypes": {
-        "hba_hba1hap1": {
-          "total_count": 105,
-          "unique_count": 0,
-          "fractional_count": 35.33333333333331
-        },
-        "hba_hba1hap2": {
-          "total_count": 115,
-          "unique_count": 1,
-          "fractional_count": 39.33333333333334
-        }
+        "hba_3p7delhap1": { ... },
+        "hba_hba1hap1": { ... },
+        "hba_hba2hap1": { ... },
+        "hba_homologyhap1": { ... }
       }
+    }
+  },
+  "sawfish_results": {
+    "hba": {
+      "sv_breakpoints": [
+        {
+          "chrom": "chr16",
+          "start": 172240,
+          "end": 176044,
+          "length": 3804,
+          "svtype": "DEL",
+          "genotype": "1/1",
+          "allele_depth": [
+            1,
+            254
+          ],
+          "annotation": {
+            "name": "3p7del",
+            "score": 1
+          }
+        }
+      ]
     }
   }
 }
 ```
 
-In case a SEA deletion is detected by Sawfish, a `sawfish_results` is added to the *HBA* annotations:
+Since Paraphase does not detect larger structural variants (other than 3p7 and 4p2) in *HBA*, a large deletion like SEA would result in an "aa/aa" genotype call by Paraphase. The adjusted genotype would correctly contain "--/aa" (where "--" represents the deleted alpha-globin gene). For example, if a SEA deletion is detected by Sawfish, you would observe:
 
-```
+```json
+"paraphase_results": {
+  "hba": {
+   ...
+    "genotype": "aa/aa",
+    "genotype_adjusted": "--/aa",
+    "haplotypes": {
+     ...
+    }
+  }
+},
 "sawfish_results": {
   "hba": {
     "sv_breakpoints": [
@@ -779,7 +794,11 @@ In case a SEA deletion is detected by Sawfish, a `sawfish_results` is added to t
         "allele_depth": [
           82,
           186
-        ]
+        ],
+        "annotation": {
+          "name": "SEA",
+          "score": 1
+        }
       }
     ]
   }

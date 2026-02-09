@@ -7,6 +7,7 @@ __author__ = "Guilherme Sena"
 __version__ = "0.1"
 
 import argparse
+import glob
 import os
 import sys
 import json
@@ -20,10 +21,8 @@ import logging
 import numpy as np
 import pandas as pd
 
-from matplotlib import pyplot as plt
 from scipy.stats import poisson
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import r2_score
 
 
 CARRIER_SCREENING_LOCI = {
@@ -75,15 +74,22 @@ class PureTargetDataset:
     files are parsed into this class
     """
 
-    def __init__(self: "PureTargetDataset", ptcp_qc_json_file: str) -> None:
+    def __init__(
+        self: "PureTargetDataset",
+        ptcp_qc_json_file: str,
+        ptcp_qc_report: Optional[dict] = None,
+    ) -> None:
         """
         take useful values from ptcp-qc to predict SMN1/2 coverage
         """
         self.success = False
 
         logging.debug("reading dataset %s", ptcp_qc_json_file)
-        with open(ptcp_qc_json_file, "r", encoding="utf8") as f:
-            dat = json.load(f)
+        if ptcp_qc_report is None:
+            with open(ptcp_qc_json_file, "r", encoding="utf8") as f:
+                dat = json.load(f)
+        else:
+            dat = ptcp_qc_report
 
         if not "stats" in dat:
             logging.warning("dataset %s has no 'stats' field. Bail.", ptcp_qc_json_file)
@@ -376,8 +382,6 @@ def is_ptcp_qc_json(path: str) -> bool:
     if not os.path.isfile(path) or not path.endswith(".json"):
         return False
 
-    # if the JSON is a large file, best to just look for "ptcp-qc"
-    # in it instead of parsing the whole thing
     with open(path, "r", encoding="utf8") as f:
         return "ptcp-qc" in f.read()
 
@@ -411,10 +415,12 @@ def read_ptcp_qc_jsons(datadir: str) -> pd.DataFrame:
     return features.T, labels
 
 
-def plot_regression(y: np.ndarray, pred: np.ndarray) -> (plt.Figure, plt.Axes):
+def plot_regression(y: np.ndarray, pred: np.ndarray):
     """
     plot the comparison between prediction and regression
     """
+    from matplotlib import pyplot as plt
+
     fig, ax = plt.subplots(figsize=(6, 6))
     ax.scatter(y, pred, s=0.5)
     ax.set_aspect("equal", adjustable="box")
@@ -439,6 +445,7 @@ def train(
     trains a scikit linear regression given a directory populated
     with ptcp-qc JSON files.
     """
+    from sklearn.metrics import r2_score
 
     # read X and y
     features, y = read_ptcp_qc_jsons(train_dir)
@@ -571,11 +578,18 @@ def evaluate(reg: LinearRegression, dataset: PureTargetDataset) -> dict:
         denom = sum(posterior_probs)
 
         # here they are posterior probabilities
+        max_prob = 0.0
+        predicted_cn = 1
         for i in range(4):
             posterior_probs[i] = round(posterior_probs[i] / denom, 4)
+            if posterior_probs[i] > max_prob:
+                max_prob = posterior_probs[i]
+                predicted_cn = i + 1
 
         ans[hap] = {
             "paraphase_copy_number": cn,
+            "predicted_copy_number": predicted_cn,
+            "prediction_confidence": max_prob,
             "observed_coverage": int(y*cn),
             "observed_coverage_per_copy": int(y),
             "obs_exp_ratio": round(y / pred, 4),
@@ -587,9 +601,16 @@ def evaluate(reg: LinearRegression, dataset: PureTargetDataset) -> dict:
             else:
                 adjusted_smn2_cn += posterior_probs[i] * (i + 1)
 
-    # GS: as of now we read the JSON twice, which is wasteful but
-    # does not affect runtime on small files. Eventually change
-    # the PureTargetDataset constructor to get the read JSON file.
+    # convert adjusted values to integers
+    adjusted_smn1_cn = min([int(round(adjusted_smn1_cn)), 4])
+    adjusted_smn2_cn = min([int(round(adjusted_smn2_cn)), 4])
+
+    # now ensure that the sum of allele lengths equal to at least 2.
+    # This is because each allele should have at least one copy
+    if adjusted_smn1_cn + adjusted_smn2_cn == 1:
+        adjusted_smn1_cn *= 2
+        adjusted_smn2_cn *= 2
+
     ans["success"] = True
     ans["adjusted_smn1_cn"] = min([int(round(adjusted_smn1_cn)), 4])
     ans["adjusted_smn2_cn"] = min([int(round(adjusted_smn2_cn)), 4])
@@ -598,14 +619,18 @@ def evaluate(reg: LinearRegression, dataset: PureTargetDataset) -> dict:
     return ans
 
 
-def append_homology_to_ptcp_qc_report(homology: dict, ptcp_qc_file: str) -> dict:
+def load_ptcp_qc_report(ptcp_qc_file: str) -> dict:
+    with open(ptcp_qc_file, "r", encoding="utf8") as f:
+        return json.load(f)
+
+
+def append_homology_to_ptcp_qc_report_data(
+    homology: dict, ptcp_qc_report: dict
+) -> dict:
     """
     checks if the SMN paraphase results is in the ptcp-qc report, and
     if so, append the homology adjustment information to it.
     """
-    with open(ptcp_qc_file, "r", encoding="utf8") as f:
-        ptcp_qc_report = json.load(f)
-
     if (
         "locus_results" in ptcp_qc_report
         and "smn1" in ptcp_qc_report["locus_results"]
@@ -615,6 +640,137 @@ def append_homology_to_ptcp_qc_report(homology: dict, ptcp_qc_file: str) -> dict
             "homology_adjustment"
         ] = homology
     return ptcp_qc_report
+
+
+def append_homology_to_ptcp_qc_report(homology: dict, ptcp_qc_file: str) -> dict:
+    """
+    checks if the SMN paraphase results is in the ptcp-qc report, and
+    if so, append the homology adjustment information to it.
+    """
+    ptcp_qc_report = load_ptcp_qc_report(ptcp_qc_file)
+    return append_homology_to_ptcp_qc_report_data(homology, ptcp_qc_report)
+
+
+def write_json_atomic(output_path: str, data: dict) -> None:
+    """
+    write JSON with a temp file + atomic replace
+    """
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    tmp_path = output_path + ".tmp"
+    with open(tmp_path, "w", encoding="utf8") as f:
+        f.write(json.dumps(data, indent=2))
+        f.write("\n")
+    os.replace(tmp_path, output_path)
+
+
+def collect_batch_paths(input_dir: str) -> List[str]:
+    """
+    collect dataset paths for batch annotation
+    """
+    glob_pattern = os.path.join(input_dir, "*.json")
+    return sorted(p for p in glob.glob(glob_pattern) if os.path.isfile(p))
+
+
+def build_output_path(
+    input_path: str, output_dir: Optional[str], input_root: Optional[str]
+) -> str:
+    """
+    compute output path for a given input file
+    """
+    if output_dir is None:
+        return input_path
+
+    input_abs = os.path.abspath(input_path)
+    if input_root:
+        root_abs = os.path.abspath(input_root)
+    else:
+        root_abs = None
+
+    if root_abs and input_abs.startswith(root_abs + os.sep):
+        rel_path = os.path.relpath(input_abs, root_abs)
+        return os.path.join(output_dir, rel_path)
+
+    return os.path.join(output_dir, os.path.basename(input_path))
+
+
+def annotate_dataset(
+    reg: LinearRegression, input_path: str, output_path: str
+) -> None:
+    """
+    annotate a single ptcp-qc JSON with homology adjustment
+    """
+    report = load_ptcp_qc_report(input_path)
+    dataset = PureTargetDataset(input_path, ptcp_qc_report=report)
+    homology = evaluate(reg, dataset)
+    updated_report = append_homology_to_ptcp_qc_report_data(homology, report)
+    write_json_atomic(output_path, updated_report)
+
+def run_batch(args: argparse.Namespace) -> int:
+    """
+    batch-annotate ptcp-qc JSON files with homology adjustments
+    """
+    dataset_paths = collect_batch_paths(args.input_dir)
+    if not dataset_paths:
+        logging.error("No datasets found to annotate.")
+        return 1
+
+    output_paths = [
+        build_output_path(path, args.output_dir, args.input_dir)
+        for path in dataset_paths
+    ]
+    if len(set(output_paths)) != len(output_paths):
+        logging.error(
+            "Output paths are not unique; adjust inputs or use --output-dir."
+        )
+        return 1
+
+    failures = 0
+    reg = load_model(args.model)
+    for input_path, output_path in zip(dataset_paths, output_paths):
+        try:
+            annotate_dataset(reg, input_path, output_path)
+        except Exception as exc:
+            logging.error("Failed to annotate %s: %s", input_path, exc)
+            failures += 1
+
+    success = len(dataset_paths) - failures
+    logging.info("Annotated %s datasets (%s failed)", success, failures)
+    return 0 if failures == 0 else 1
+
+
+def run_train(args: argparse.Namespace) -> int:
+    """
+    run the training workflow
+    """
+    logging.info("TRAINING MODE")
+    reg, y, pred = train(args.train_dir, args.print_outliers)
+    save_model(reg, args.output_file)
+
+    if args.plot_regression:
+        fig_filename = args.output_file + ".scatter.png"
+        fig, _ = plot_regression(y, pred)
+        logging.info("saving scatterplot to %s", fig_filename)
+        fig.savefig(fname=fig_filename, bbox_inches="tight", dpi=150)
+
+    return 0
+
+
+def run_test(args: argparse.Namespace) -> int:
+    """
+    run the single-file annotation workflow
+    """
+    logging.info("TEST MODE")
+    reg = load_model(args.model)
+    dataset = PureTargetDataset(args.dataset)
+    ans = evaluate(reg, dataset)
+
+    logging.info("writing updated ptcp-qc output")
+    ans = append_homology_to_ptcp_qc_report(ans, args.dataset)
+    print(json.dumps(ans, indent=2))
+
+    return 0
 
 
 def parse_args() -> argparse.Namespace:
@@ -630,6 +786,7 @@ def parse_args() -> argparse.Namespace:
     train_parser = subparsers.add_parser(
         "train", help="Train the SMN coverage prediction model"
     )
+    train_parser.set_defaults(func=run_train)
     train_parser.add_argument(
         "--train_dir",
         metavar="DIR",
@@ -656,8 +813,9 @@ def parse_args() -> argparse.Namespace:
     )
 
     test_parser = subparsers.add_parser(
-        "test", help="Test a dataset using a trained model"
+        "test", help="Annotate a single ptcp-qc JSON file"
     )
+    test_parser.set_defaults(func=run_test)
     test_parser.add_argument(
         "--model",
         metavar="MODEL.[pkl|json]",
@@ -673,13 +831,46 @@ def parse_args() -> argparse.Namespace:
         help="ptcp-qc dataset to test",
     )
 
-    return parser.parse_args()
+    batch_parser = subparsers.add_parser(
+        "test-batch", help="Batch annotate ptcp-qc JSON files"
+    )
+    batch_parser.set_defaults(func=run_batch)
+    batch_parser.add_argument(
+        "--model",
+        metavar="MODEL.[pkl|json]",
+        required=True,
+        type=str,
+        help="Input file (pkl or json) containing the trained model",
+    )
+    batch_parser.add_argument(
+        "--input-dir",
+        metavar="DIR",
+        type=str,
+        required=True,
+        help="Directory containing ptcp-qc JSON outputs",
+    )
+    output_group = batch_parser.add_mutually_exclusive_group(required=True)
+    output_group.add_argument(
+        "--output-dir",
+        metavar="DIR",
+        type=str,
+        help="Output directory for annotated files",
+    )
+    output_group.add_argument(
+        "--in-place",
+        action="store_true",
+        help="Overwrite input files in place",
+    )
+
+    args = parser.parse_args()
+    if args.command is None:
+        parser.print_help()
+        sys.exit(1)
+
+    return args
 
 
 def main() -> None:
-    """
-    main program
-    """
     args = parse_args()
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
@@ -690,30 +881,9 @@ def main() -> None:
     )
     logging.info(args)
 
-    if args.command is None:
-        logging.error("Please specify a command: 'train' or 'test'")
-        sys.exit(1)
-
-    if args.command == "train":
-        logging.info("TRAINING MODE")
-        reg, y, pred = train(args.train_dir, args.print_outliers)
-        save_model(reg, args.output_file)
-
-        if args.plot_regression:
-            fig_filename = args.output_file + ".scatter.png"
-            fig, _ = plot_regression(y, pred)
-            logging.info("saving scatterplot to %s", fig_filename)
-            fig.savefig(fname=fig_filename, bbox_inches="tight", dpi=150)
-
-    elif args.command == "test":
-        logging.info("TEST MODE")
-        reg = load_model(args.model)
-        dataset = PureTargetDataset(args.dataset)
-        ans = evaluate(reg, dataset)
-
-        logging.info("writing updated ptcp-qc output")
-        ans = append_homology_to_ptcp_qc_report(ans, args.dataset)
-        print(json.dumps(ans, indent=2))
+    exit_code = args.func(args)
+    if exit_code != 0:
+        sys.exit(exit_code)
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ task collect_inputs {
 
   parameter_meta {
     sample_sheet: {
-      help: "TSV file containing sample metadata",
+      help: "CSV file containing sample metadata",
       label: "Sample sheet"
     }
     hifi_reads: {
@@ -55,105 +55,20 @@ task collect_inputs {
 
   Int disk_size = ceil(size(hifi_reads, 'GB') * 3 + size(select_first([fail_reads, []]), 'GB') * 3 + 20)
 
-  # TEMP: This Python code will be moved to docker/scripts/ when stable
   command <<<
     set -e
-    python3 <<EOF
-    import os
-    import re
-    import subprocess
-    import shutil
-    import logging as log
-    from collections import defaultdict
-    from pathlib import Path
-    from typing import List, Union
-    from pbcore.io import BamReader
-
-    log.basicConfig(level=log.INFO)
-
-    def validate_bam_file(bam_file: Path):
-        command = ["samtools", "quickcheck", "-u", "-vvvvv", str(bam_file)]
-        try:
-            result = subprocess.run(
-                command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-            if result.returncode != 0:
-                raise RuntimeError(
-                    f"samtools quickcheck failed for {bam_file} with error:\n{result.stderr.strip()}"
-                )
-        except FileNotFoundError:
-            raise RuntimeError("samtools is not installed or not in PATH.")
-
-    def collect_bam_files(
-        hifi_bams: List[str],
-        fail_bams: List[str],
-        nproc: int,
-        biosamples_out: Union[Path, str],
-    ) -> None:
-        hifi_fail_pattern = re.compile(r"\.(hifi_reads|fail_reads)\.")
-        reads_pattern = re.compile(r"\.reads$")
-        bam_map = defaultdict(list)
-        missing_kinetics = []
-
-        for bam_file_str in list(hifi_bams) + list(fail_bams):
-            bam_file = Path(bam_file_str)
-            validate_bam_file(bam_file)
-
-            bam_name = hifi_fail_pattern.sub(".", bam_file.name)
-            bam_name = reads_pattern.sub("", bam_name)
-            bam_name = bam_name.rstrip(".bam")
-
-            sample_names = set([])
-            bam = BamReader(bam_file)
-            for rg in bam.readGroupTable:
-                if len(rg.StringID.split("/")) < 2:
-                    log.warning(f"The BAM file: {bam_file} possibly has not been through demultiplexing.")
-                sample_names.add(rg.SampleName)
-            if len(sample_names) > 1:
-                samples_str = ", ".join(list(sample_names))
-                log.warning(f"Multiple samples found in a single BAM file: {bam_file} -> {samples_str}.")
-
-            programs = {prog["ID"] for prog in bam.peer.header["PG"]}
-            if not "jasmine" in programs:
-                if not bam.hasBaseFeature("Ipd"):
-                    log.warning(f"Warning: Analysis output will not contain methylyation calls due to missing kinetics in {bam_name}.")
-                    missing_kinetics.append(bam_name)
-                else:
-                    log.warning(f"Warning: Jasmine has not been run on {bam_name}.")
-            bam_map[bam_name].append(bam_file)
-
-        all_sample_names = []
-        for i, (sample, bam_files) in enumerate(bam_map.items(), start=1):
-            bam_name = f"sample{i:04d}_{sample}.unmapped.bam"
-            if len(bam_files) == 1:
-                log.info(f"Found a single bam for sample {sample}")
-                shutil.copyfile(bam_files[0], bam_name)
-            else:
-                log.info(f"Merging {len(bam_files)} BAMs for sample {sample}")
-                args = ["pbmerge", "-j", str(nproc), "-o", bam_name] + bam_files
-                subprocess.check_call(args)
-            all_sample_names.append(sample)
-
-        with open(biosamples_out, "wt") as sample_out:
-            sample_out.write("\n".join(all_sample_names))
-        log.info(f"Wrote list of sample names to biosamples.txt")
-
-    hifi_bams = "~{sep=';' hifi_reads}".split(";")
-    fail_bams = "~{sep=';' select_first([fail_reads,[]])}".split(";") if "~{sep=';' select_first([fail_reads,[]])}" else []
-    collect_bam_files(hifi_bams=hifi_bams,
-                      fail_bams=fail_bams,
-                      nproc=~{threads},
-                      biosamples_out="biosamples.txt")
-    EOF
+    collect_inputs.py \
+      --hifi-bams "~{sep=';' hifi_reads}" \
+      --fail-bams "~{sep=';' select_first([fail_reads,[]])}" \
+      --threads ~{threads} \
+      --output biosamples.txt \
+      --chunk-bams chunk_bams.txt
 
     cat biosamples.txt | parse_sample_sheet.py --batch-input --output sex ~{sample_sheet} > sample_sexes.txt
   >>>
 
   output {
-    Array[File] chunks                    = glob("*.unmapped.bam")
+    Array[File] chunks                    = read_lines("chunk_bams.txt")
     Array[String] sample_names            = read_lines("biosamples.txt")
     Array[String] sample_sexes            = read_lines("sample_sexes.txt")
   }
@@ -415,6 +330,10 @@ task ptcp_qc {
       help: "Array of JSON files containing the QC reports generated by ptcp-qc.",
       label: "QC Reports" 
     }
+    qc_csv_reports: {
+      help: "Array of CSV files containing the QC reports generated by ptcp-qc.",
+      label: "QC CSV Reports"
+    }
   }
  
   input {
@@ -433,6 +352,7 @@ task ptcp_qc {
   String output_dir = "ptcp_qc"
   String output_prefix = "qc"
 
+  # Note: ptcp-qc does not consume Paraphase VCFs (yet), so they are omitted from the manifest
   command <<<
     set -e
     mkdir -p ~{output_dir}
@@ -489,21 +409,20 @@ EOF
       --json
 
     ~{if defined(pt_linear_regression) then
-  "for json_file in " + output_dir + "/" + output_prefix + "*.json; do\n" +
-  "  [ -f \"$json_file\" ] || continue\n" +
-  "  [[ \"$json_file\" == *aggregate* ]] && continue\n" +
-  "  smn_homology test --model " + pt_linear_regression +
-  " --dataset \"$json_file\" > \"$json_file.tmp\"\n" +
-  "  mv \"$json_file.tmp\" \"$json_file\"\n" +
-  "done\n"
+  "smn_homology test-batch --model " + pt_linear_regression +
+  " --input-dir " + output_dir + " --in-place\n"
   else ""
 }
+
+    ptcpqc_json_to_csv.py --inputs ~{output_dir}/~{output_prefix}*.json \
+      -o ~{output_dir}/~{output_prefix}.csv
 
     rm --recursive --force --verbose extracted_tarballs
   >>>
 
   output {
     Array[File] qc_reports = glob("~{output_dir}/~{output_prefix}*.json")
+    Array[File] qc_csv_reports = glob("~{output_dir}/~{output_prefix}*.csv")
   }
 
   runtime {

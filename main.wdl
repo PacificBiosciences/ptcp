@@ -10,12 +10,12 @@ workflow ptcp {
     title: "PureTarget tandem repeat and hard gene workflow"
     summary: "Workflow for targeted analysis of tandem repeats and hard genes"
     description: "Workflow for analyzing hard genes and repeat regions using PacBio data. Combines multiple tools including TRGT for repeat genotyping and Paraphase for haplotype phasing and (small) variant calling."
-    version: "3.1.2"
+    version: "3.2.0"
   }
 
   parameter_meta {
     sample_sheet: {
-      help: "TSV file containing sample metadata including sex information",
+      help: "CSV file containing sample metadata including sex information",
       label: "Sample sheet"
     }
     hifi_reads: {
@@ -47,7 +47,7 @@ workflow ptcp {
       label: "Paraphase annotation VCF"
     }
     genome_version: {
-      help: "Reference genome version (e.g., GRCh38)",
+      help: "Reference genome version flag (e.g., '38' or '37')",
       label: "Genome version"
     }
     ptcp_qc_bed: {
@@ -83,6 +83,10 @@ workflow ptcp {
       help: "Array of BAM files containing reads spanning repeat regions",
       label: "TRGT spanning BAMs"
     }
+    trgt_spanning_bam_bai: {
+      help: "Array of index files for TRGT spanning BAMs",
+      label: "TRGT spanning BAM indices"
+    }
     images_motifs_allele: {
       help: "Array of archives containing repeat motif allele plots",
       label: "TRGT motif allele plots"
@@ -98,6 +102,14 @@ workflow ptcp {
     images_meth_waterfall: {
       help: "Array of archives containing methylation waterfall plots",
       label: "TRGT methylation waterfall plots"
+    }
+    reads_overlapping_repeats: {
+      help: "Array of BAM files containing reads overlapping repeat regions",
+      label: "TRGT overlapping reads BAMs"
+    }
+    reads_overlapping_repeats_bai: {
+      help: "Array of index files for overlapping repeat reads BAMs",
+      label: "TRGT overlapping reads BAM indices"
     }
     paraphase_bam: {
       help: "Array of phased BAM files from Paraphase",
@@ -127,6 +139,10 @@ workflow ptcp {
       help: "Array of QC report files containing ptcp-qc statistics",
       label: "ptcp-qc stats"
     }
+    ptcp_qc_csv_reports: {
+      help: "Array of QC report files containing ptcp-qc statistics (CSV)",
+      label: "ptcp-qc stats (CSV)"
+    }
     sawfish_vcf: {
       help: "Array of VCF files containing structural variants",
       label: "Sawfish VCFs"
@@ -135,11 +151,11 @@ workflow ptcp {
       help: "Array of index files for structural variant VCFs",
       label: "Sawfish VCF indices"
     }
-    minimap2_bam: {
+    sawfish_minimap2_bam: {
       help: "BAM file with reads remapped using minimap2",
       label: "Minimap2 BAM"
     }
-    minimap2_bam_bai: {
+    sawfish_minimap2_bam_bai: {
       help: "Index for the minimap2 remapped BAM file",
       label: "Minimap2 BAM index"
     }
@@ -164,7 +180,7 @@ workflow ptcp {
     File? pt_linear_regression
 
     String log_level        = "INFO"
-    String docker_smrttools = "quay.io/pacbio/ptcp:3.1"
+    String docker_smrttools = "quay.io/pacbio/ptcp:3.2"
   }
 
   call Common.collect_inputs {
@@ -280,6 +296,7 @@ workflow ptcp {
     Array[File] f8_json                             = paraphase.f8_json
 
     Array[File] ptcp_qc_reports                     = ptcp_qc.qc_reports
+    Array[File] ptcp_qc_csv_reports                 = ptcp_qc.qc_csv_reports
 
     Array[File] sawfish_vcf                         = sawfish.vcf
     Array[File] sawfish_vcf_tbi                     = sawfish.vcf_tbi

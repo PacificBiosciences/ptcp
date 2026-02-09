@@ -112,3 +112,21 @@ regression estimated, so the copy number is actually twice the expected and the
 adjusted CN is reported as 4.
 
 
+## Batch annotate files
+
+For many ptcp-qc JSONs, use batch mode so the model is loaded once and files are updated in a single process.
+
+In-place updates:
+```
+smn_homology batch \
+  --model my-model.json \
+  --input-dir ptcp-qc-outs
+```
+
+Write updated files to a new directory:
+```
+smn_homology batch \
+  --model my-model.json \
+  --input-dir ptcp-qc-outs \
+  --output-dir ptcp-qc-outs.annotated
+```

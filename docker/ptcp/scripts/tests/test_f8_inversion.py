@@ -1,6 +1,13 @@
+import sys
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
-from f8_inversion import (
+
+SCRIPT_DIR = Path(__file__).resolve().parents[1]
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from f8_inversion import (  # noqa: E402
     _get_label_for_read,
     call_inversion,
     get_spans,
@@ -20,7 +27,11 @@ except ImportError:
 
 
 def create_mock_read(
-    start: int, end: int, cigartuples: list = None, haplotype: int = None, qname: str = "test_read"
+    start: int,
+    end: int,
+    cigartuples: list = None,
+    haplotype: int = None,
+    qname: str = "test_read",
 ):
     read = SimpleNamespace()
     read.reference_start = start
@@ -451,7 +462,8 @@ class TestGetBreakpoints(unittest.TestCase):
     def test_overlapping_reads_same_label_haplotype(self):
         reads = (
             [InversionRead("00", 1, 100, 150, "read_00")] * 50  # Overlaps with next
-            + [InversionRead("00", 1, 140, 200, "read_00")] * 50  # Overlaps with previous
+            + [InversionRead("00", 1, 140, 200, "read_00")]
+            * 50  # Overlaps with previous
         )
         result = get_spans("chrX", reads, min_fraction=0.1, min_absolute=40)
         self.assertEqual(len(result), 1)
@@ -498,9 +510,12 @@ class TestGetBreakpoints(unittest.TestCase):
     def test_multiple_overlapping_groups(self):
         reads = (
             [InversionRead("00", None, 100, 150, "read_00")] * 50  # Group 1
-            + [InversionRead("00", None, 140, 180, "read_00")] * 50  # Overlaps with group 1
-            + [InversionRead("01", None, 300, 350, "read_01")] * 50  # Group 2 (different label)
-            + [InversionRead("01", None, 340, 380, "read_01")] * 50  # Overlaps with group 2
+            + [InversionRead("00", None, 140, 180, "read_00")]
+            * 50  # Overlaps with group 1
+            + [InversionRead("01", None, 300, 350, "read_01")]
+            * 50  # Group 2 (different label)
+            + [InversionRead("01", None, 340, 380, "read_01")]
+            * 50  # Overlaps with group 2
         )
         result = get_spans("chrX", reads, min_fraction=0.1, min_absolute=40)
         self.assertEqual(len(result), 2)
@@ -516,8 +531,10 @@ class TestGetBreakpoints(unittest.TestCase):
     def test_chain_of_overlapping_reads(self):
         reads = (
             [InversionRead("00", None, 100, 150, "read_00")] * 50  # Overlaps with next
-            + [InversionRead("00", None, 140, 190, "read_00")] * 50  # Overlaps with prev and next
-            + [InversionRead("00", None, 180, 230, "read_00")] * 50  # Overlaps with prev
+            + [InversionRead("00", None, 140, 190, "read_00")]
+            * 50  # Overlaps with prev and next
+            + [InversionRead("00", None, 180, 230, "read_00")]
+            * 50  # Overlaps with prev
         )
         result = get_spans("chrX", reads, min_fraction=0.1, min_absolute=40)
         self.assertEqual(len(result), 1)

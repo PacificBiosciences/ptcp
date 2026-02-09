@@ -11,8 +11,6 @@ import json
 import logging
 import os
 import sys
-
-from collections import namedtuple
 from typing import List
 
 __author__ = "Guilherme Sena"
@@ -25,7 +23,7 @@ class PathoVariant:
     chrom, pos, ref, alt, and whether it is PATHO or PSEUDO
     """
 
-    def __init__(self, line) -> 'PathoVariant':
+    def __init__(self, line) -> "PathoVariant":
         line = line.split()
         self.chrom = line[0]
         self.pos = int(line[1])
@@ -49,7 +47,6 @@ class PathoVariant:
         size = len(self.alt) - len(self.ref)
         size = 0 if size < 5 else size
         return size
-
 
     def del_size(self) -> int:
         """
@@ -104,14 +101,13 @@ class InconsistentRefException(Exception):
         super().__init__(self.message)
 
 
-
 class PathoVariantList:
     """
     A class to cllect variants and implement locus-specific logic on whether
     the list is more aligned with a gene or a pseudogene
     """
 
-    def __init__(self, hap_name) -> 'PathoVariantList':
+    def __init__(self, hap_name) -> "PathoVariantList":
         """
         Creates an empty variant list
         """
@@ -123,8 +119,7 @@ class PathoVariantList:
         self.total_ins_size = 0
         self.total_del_size = 0
 
-
-    def add_variant(self, variant) -> 'PathoVariantList':
+    def add_variant(self, variant) -> "PathoVariantList":
         """
         add the variant and ensures checks and makes any online logic
         """
@@ -142,7 +137,7 @@ class PathoVariantList:
         self.total_del_size += variant.del_size()
         return self
 
-    def transform_to_patho(self, patho_variants) -> 'PathoVariantList':
+    def transform_to_patho(self, patho_variants) -> "PathoVariantList":
         """
         change the paraphase VCF entries to the pathogenic from the variant list
         """
@@ -156,8 +151,7 @@ class PathoVariantList:
                         "{list_variant.ref} but got {v.ref} instead"
                     )
                 if v.alt == list_variant.alt:
-                    new_v = patho_variants[v]
-                    new_variants.append(new_v)
+                    new_variants.append(list_variant)
         self.variants = new_variants
         return self
 
@@ -213,7 +207,7 @@ def read_variant_list(the_file: str) -> dict:
                 continue
             v = PathoVariant(line)
             variants.update({v: v})
-    return dict(variants)
+    return variants
 
 
 def query_expected_variants(
@@ -236,11 +230,11 @@ def query_expected_variants(
         )
 
     locus = standardize_variant_name(locus)
-    variants = list(variants)  # need indices here
-    names_std = [standardize_variant_name(x.name) for x in variants]
-    expected = expected.split(",")
-    ans = [None] * len(expected)
-    for i, exp in enumerate(expected):
+    variants_keys = list(variants)  # need indices here
+    names_std = [standardize_variant_name(x.name) for x in variants_keys]
+    expected_list = expected.split(",")
+    ans = [None] * len(expected_list)
+    for i, exp in enumerate(expected_list):
         exp_std = standardize_variant_name(exp)
         for j, variant_name in enumerate(names_std):
             if exp_std in variant_name and locus in variant_name:
@@ -259,10 +253,10 @@ def make_report(paraphase_haplos) -> None:
     """
     ans = {}
 
-    for haplo in paraphase_haplos:
+    for haplo in sorted(paraphase_haplos, key=lambda x: x.name):
         haplo_ans = {}
-        patho_variants = [x.name for x in haplo.variants if x.is_patho]
-        pseudo_variants = [x.name for x in haplo.variants if x.is_pseudo]
+        patho_variants = sorted([x.name for x in haplo.variants if x.is_patho])
+        pseudo_variants = sorted([x.name for x in haplo.variants if x.is_pseudo])
         haplo_ans["num_pathogenic_variants"] = len(patho_variants)
         haplo_ans["num_pseudogene_variants"] = len(pseudo_variants)
         haplo_ans["total_insertion_size"] = haplo.total_ins_size
@@ -272,6 +266,7 @@ def make_report(paraphase_haplos) -> None:
         haplo_ans["variants"]["pseudogene"] = pseudo_variants
         ans[haplo.name] = haplo_ans
     return ans
+
 
 def find_paraphase_vcfs(paraphase_dir: str) -> List[str]:
     """
@@ -283,8 +278,9 @@ def find_paraphase_vcfs(paraphase_dir: str) -> List[str]:
             for f in os.listdir(os.path.join(paraphase_dir, d)):
                 if f.endswith(".vcf"):
                     ans.append(os.path.join(paraphase_dir, d, f))
+    return sorted(ans)
 
-    return ans
+
 def parse_args() -> argparse.ArgumentParser:
     """
     parse command line arguments
@@ -309,16 +305,12 @@ def parse_args() -> argparse.ArgumentParser:
     return parser.parse_args()
 
 
-
-
 def main() -> None:
     """
     main havanno program
     """
 
     args = parse_args()
-
-    # configure logger
     logger = logging.getLogger("havanno")
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
@@ -346,12 +338,15 @@ def main() -> None:
         paraphase_haplos = read_hap_variants(paraphase_vcf)
 
         logger.info("finding matches of paraphase variants in the VCF")
-        paraphase_haplos = [x.transform_to_patho(patho_variants) for x in paraphase_haplos]
+        paraphase_haplos = [
+            x.transform_to_patho(patho_variants) for x in paraphase_haplos
+        ]
 
         logger.info("writing output and wrapping up...")
         ans["annotations"][locus] = make_report(paraphase_haplos)
 
     print(json.dumps(ans, indent=2))
+
 
 if __name__ == "__main__":
     main()

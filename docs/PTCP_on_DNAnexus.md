@@ -70,7 +70,7 @@ This section explains how to configure and execute the PTCP workflow on DNAnexus
 |----------------|--------------|-------------|
 | Fail reads     | File chooser | The Fail read BAM files corresponding to the samples you want to analyze |
 | HiFi reads     | File chooser | The HiFi read BAM files corresponding to the samples you want to analyze   |
-| Sample sheet   | File chooser | A CSV of sample information corresponding to the HiFi and fail reads you selected for analysis. For details on formatting the sample sheet, refer to the [sample sheet section of the main README](./Input_files.md#12-sample-sheet). |
+| Sample sheet   | File chooser | A CSV of sample information corresponding to the HiFi and fail reads you selected for analysis. For details on formatting the sample sheet, refer to the [sample sheet section of the Input Files documentation](./Input_files.md#12-sample-sheet). |
 
 "Fail" reads should always be included if you have them, but inputting "fail" reads in DNAnexus is optional. For example, if you have already merged your "fail" reads into your HiFi reads BAM file, then you would only need to input the "HiFi" reads.
 
@@ -85,7 +85,7 @@ Even if you do not have your own PacBio data to run the PTCP workflow in DNAnexu
 4. For each sample you want to run you will need to select that sample's "HiFi reads" and "fail reads" in the configuration page
     1. Click **Fail reads** and select each of the fail read BAM files that correspond to the samples you want to analyze
     2. Click **HiFi reads** and select each of the HiFi read BAM files that correspond to the samples you want to analyze
-    3. You should have selected the same number of fail reads and HiFi reads
+    3. Fail reads are optional; if you include them, select the fail-read BAMs corresponding to the samples you're running
 5. Select your **Sample sheet** that corresponds to the samples you want to analyze. These samples should match the HiFi and fail read BAMs you selected in the previous step
 6. Click **Start Analysis**
 
@@ -120,6 +120,11 @@ bc2048_rpgr.vcf            <- ...
 bc2048_smn1.vcf            <- ...
 bc2048.havanno.json     <- Annotated small variants called by Paraphase from the VCF folder,
                            these are annotated given a user defined variant list
+bc2048.minimap2.bam        <- minimap2-remapped reads used by Sawfish (HBA region)
+bc2048.minimap2.bam.bai
+bc2048_sawfish/bc2048.sv.vcf.gz       <- Sawfish SV calls (HBA region)
+bc2048_sawfish/bc2048.sv.vcf.gz.tbi
+ptcp_qc/qc.bc2048.json     <- ptcp-qc per-sample QC report (path/naming may vary by platform)
 ```
 
 ### 2.4. Example data

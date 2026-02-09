@@ -3,6 +3,7 @@
 set -euo pipefail
 
 MYDIR=$(readlink -f "$(dirname "$0")")
+source "${MYDIR}/build_versions.sh"
 
 usage() {
     echo "Usage: $0 [OPTIONS]"
@@ -19,16 +20,7 @@ if ! command -v docker &> /dev/null; then
     exit 1
  fi
 
-# Tool versions
-SMRTLINK_VERSION=25.1.0.257715
-RUST_VERSION=1.82.0
-TRGT_VERSION=4.0.0
-PARAPHASE_COMMIT=ef1f25cb04f7bfde4e0f7f58817bd46c9fb1654a # paraphase-v3.3.4
-PTCPQC_ARCHIVE=ptcp-qc-v0.8.0-x86_64-unknown-linux-gnu.tar.gz
-SAWFISH_VERSION=v2.0.3
-
 # Image settings
-IMAGE_NAME=ptcp
 IMAGE_TAG=latest
 IMAGE_FULL_TAG="${IMAGE_NAME}:${IMAGE_TAG}"
 
@@ -73,8 +65,8 @@ BUILD_CMD="docker buildx build \
   --build-arg SMRTLINK_VERSION=${SMRTLINK_VERSION} \
   --build-arg PARAPHASE_COMMIT=${PARAPHASE_COMMIT} \
   --build-arg TRGT_VERSION=${TRGT_VERSION} \
-  --build-arg PTCPQC_ARCHIVE=${PTCPQC_ARCHIVE} \
   --build-arg SAWFISH_VERSION=${SAWFISH_VERSION} \
+  --build-arg PTCPQC_VERSION=${PTCPQC_VERSION} \
   -t \"${IMAGE_FULL_TAG}\" \
   -f \"${MYDIR}/Dockerfile\" \
   ."

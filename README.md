@@ -2,11 +2,11 @@
 
 <h1 align="center">PacBio PureTarget Carrier Pipeline</h1>
 
-The PacBio PureTarget Carrier Pipeline is a WDL-based workflow designed to genotype tandem repeat regions and homologous genes with segmental duplications using PacBio PureTarget data. It orchestrates several established PacBio tools in a containerized environment to deliver reproducible, per-sample and multi-sample results.
+The PacBio PureTarget Carrier Pipeline is a WDL-based workflow designed to genotype tandem repeat regions and homologous genes using PacBio PureTarget data. It orchestrates several established PacBio tools in a containerized environment to deliver reproducible, per-sample and multi-sample results.
 
 ## Version information
 
-Current version: **3.1.2** (released 2025-10-03).
+Current version: **3.2.0** (released 2026-02-09).
 
 For a complete changelog, see the [changelog](CHANGELOG.md) or the git history.
 

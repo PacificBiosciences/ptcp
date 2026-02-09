@@ -2,6 +2,35 @@
 
 Any changes to PTCP are noted below:
 
+## [3.2.0] - 2026-02-09
+
+### Added
+
+- QC CSV reporting: ptcp-qc JSON reports are now also summarized into CSV outputs written alongside existing QC outputs (qc.coverage.csv, qc.trgt.csv, qc.paraphase.csv, qc.aggregate.csv).
+
+### Changed
+- **Tool updates:** 
+    - TRGT -> 5.0.0 [(Release notes)](https://github.com/PacificBiosciences/trgt/releases/tag/v5.0.0)
+        - Includes improved consensus generation for long repeat expansions changes introduced in; see also changes introduced in [4.1.0](https://github.com/PacificBiosciences/trgt/releases/tag/v4.1.0)
+    - Paraphase -> 3.4.0 [(Release notes)](https://github.com/PacificBiosciences/paraphase/releases/tag/v3.4.0)
+    - Sawfish -> 2.2.1 [(Release notes)](https://github.com/PacificBiosciences/sawfish/releases/tag/v2.2.1)
+    - ptcp-qc -> 1.0.0 [(Release notes)](https://github.com/PacificBiosciences/ptcp-qc/releases/tag/1.0.0)
+        - Adds improved annotation for known HBA deletions, including the most likely deletion name when detected (e.g., if the observed breakpoints and deletion length match the 3.7 kb deletion (`3p7del`), it will be annotated as `3p7del`)
+
+- Variant annotation with Havanno is now deterministic to improve reproducibility across runs
+- SMN homology correction supports batch mode for higher-throughput processing
+- Repeat annotation VCF updated with additional HBB variants
+- Sample sheet format simplified to a two-column mapping (sample to sex)
+- TRGT TRID extraction for plotting now uses bcftools instead of awk parsing
+- BAM collection improved across storage backends to reduce low-probability sample mis-association risk
+
+### Fixed
+
+- *SMN* copy number correction: fixed an edge case where the correction logic could report a single copy
+- miniwdl-slurm updated to address rare Slurm-related failures observed in production environments
+- *GBA* and *RPGR* target intervals adjusted to prevent 1 to 2 bp edge clipping artifacts during Paraphase realignment
+- Fixed a rare naming truncation issue during BAM normalization. Outputs were not affected, and sample names/labels are now preserved correctly throughout normalization and reporting
+
 ## [3.1.2] - 2025-10-03
 
 ### Added

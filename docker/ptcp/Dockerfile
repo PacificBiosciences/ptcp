@@ -65,15 +65,6 @@ RUN git clone https://github.com/PacificBiosciences/paraphase.git /opt/paraphase
   && pip3 install -e . \
   && cd /
 
-# NOTE: This is temporary, for now ptcp will ship along a binary of the latest version of ptcp-qc 
-ARG PTCPQC_ARCHIVE
-COPY binaries/${PTCPQC_ARCHIVE} /tmp/
-RUN mkdir -p /tmp/ptcp-qc-extract && \
-  tar -xzf /tmp/${PTCPQC_ARCHIVE} -C /tmp/ptcp-qc-extract && \
-  find /tmp/ptcp-qc-extract -type f -executable -exec cp {} /usr/local/bin/ptcp-qc \; && \
-  chmod +x /usr/local/bin/ptcp-qc && \
-  rm -rf /tmp/ptcp-qc-extract /tmp/${PTCPQC_ARCHIVE}
-
 ARG SAWFISH_VERSION
 RUN mkdir -p /tmp/sawfish_install \
   && cd /tmp/sawfish_install \
@@ -83,6 +74,16 @@ RUN mkdir -p /tmp/sawfish_install \
   && cp sawfish-${SAWFISH_VERSION}-x86_64-unknown-linux-gnu/bin/sawfish /usr/local/bin/ \
   && cd / \
   && rm -rf /tmp/sawfish_install
+
+ARG PTCPQC_VERSION
+RUN mkdir -p /tmp/ptcp-qc-install \
+  && cd /tmp/ptcp-qc-install \
+  && wget --progress=dot:mega \
+  https://github.com/PacificBiosciences/ptcp-qc/releases/download/${PTCPQC_VERSION}/ptcp-qc-v${PTCPQC_VERSION}-x86_64-unknown-linux-gnu.tar.gz \
+  && tar -xzf ptcp-qc-v${PTCPQC_VERSION}-x86_64-unknown-linux-gnu.tar.gz \
+  && cp ptcp-qc-v${PTCPQC_VERSION}-x86_64-unknown-linux-gnu/ptcp-qc /usr/local/bin/ \
+  && cd / \
+  && rm -rf /tmp/ptcp-qc-install
 
 COPY scripts/* /opt/scripts/
 COPY scripts/havanno/havanno /opt/scripts/havanno

@@ -154,7 +154,7 @@ task run_sawfish {
   Int disk_size = ceil((size(mapped_bam, 'GB') + size(ref_fasta, 'GB')) * 3 + 20)
 
   command <<<
-    set -e
+    set -euo pipefail
 
     if [[ "~{genome_version}" == "38" ]]; then
       HBA_REGION="chr16:126123-209491"
@@ -165,7 +165,7 @@ task run_sawfish {
       HBA_REGION="chr16:126123-209491"
     fi
 
-    samtools view -h ~{mapped_bam} -e "[rq]>=0.99" ${HBA_REGION} -T ~{ref_fasta} | \
+    samtools view -h -e "[rq]>=0.99" -T ~{ref_fasta} ~{mapped_bam} ${HBA_REGION} | \
     samtools fastq -T MM,ML - | \
     minimap2 -a -y -x map-hifi -Y -E 1,0 ~{ref_fasta} - | \
     samtools view -b -h | \

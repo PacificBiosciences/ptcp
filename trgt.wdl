@@ -466,8 +466,9 @@ task trgt_plot {
 
   Int disk_size = ceil((size(spanning_bam, 'GB') + size(ref_fasta, 'GB')) * 2 + 20)
 
+  # Note: bcftools is provided by the SMRT Link toolchain in the container
   command <<<
-    grep -v "^#" ~{vcf} | awk -F"[=:\t;]" '{print $9}' | while read -r i; do
+    bcftools query -f '%INFO/TRID\n' ~{vcf} | while read -r i; do
       trgt plot \
         --repeat-id "$i" \
         --genome ~{ref_fasta} \

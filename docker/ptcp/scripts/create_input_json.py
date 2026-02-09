@@ -6,115 +6,15 @@ This script processes BAM files in a directory, groups them by sample,
 and generates JSON input files with BAM file paths organized into chunks.
 """
 
+__version__ = "1.0.0"
+
 import argparse
 import json
 import sys
 import logging
 from pathlib import Path
-from collections import defaultdict
-import re
-from typing import List, Dict, Tuple, Optional
-
-SKIP_PATTERNS = [
-    "unassigned",
-    "sequencing_control",
-]
-
-HIFI_FAIL_PATTERN = re.compile(r"\.(hifi_reads|fail_reads)\.")
-READS_PATTERN = re.compile(r"\.reads$")
-FAIL_PATTERN = re.compile(r"fail", re.IGNORECASE)
-
-
-def find_bam_files(directory: Path, max_depth: Optional[int] = None) -> List[Path]:
-    if max_depth is None:
-        return list(directory.rglob("*.bam"))
-
-    bam_files = []
-
-    def _search_recursive(path: Path, current_depth: int) -> None:
-        if current_depth > max_depth:
-            return
-
-        for item in path.iterdir():
-            if item.is_file() and item.suffix == ".bam":
-                bam_files.append(item)
-            elif item.is_dir() and current_depth < max_depth:
-                _search_recursive(item, current_depth + 1)
-
-    _search_recursive(directory, 0)
-    return bam_files
-
-
-def should_skip_file(file_path: Path) -> bool:
-    """Check if a BAM file should be skipped based on skip patterns."""
-    name_lower = file_path.name.lower()
-    return any(pattern in name_lower for pattern in SKIP_PATTERNS)
-
-
-def normalize_bam_name(bam_path: Path) -> str:
-    """
-    Normalize BAM file name by removing HiFi/fail suffixes and .reads extension.
-
-    Args:
-        bam_path: Path to the BAM file
-
-    Returns:
-        Normalized BAM name without extensions and suffixes
-    """
-    bam_name = HIFI_FAIL_PATTERN.sub(".", bam_path.name)
-    bam_name = READS_PATTERN.sub("", bam_name)
-    return bam_name.rstrip(".bam")
-
-
-def group_bam_files(bam_files: List[Path]) -> Dict[str, List[Path]]:
-    """
-    Group BAM files by normalized sample name.
-
-    Args:
-        bam_files: List of all BAM file paths
-
-    Returns:
-        Dictionary mapping normalized sample names to lists of BAM files
-    """
-    bam_groups = defaultdict(list)
-
-    logging.info(f"Processing {len(bam_files)} BAM files.")
-
-    for bam_path in bam_files:
-        if should_skip_file(bam_path):
-            logging.debug(
-                f"Skipping file due to matching SKIP_PATTERNS: {bam_path.name}"
-            )
-            continue
-
-        normalized_name = normalize_bam_name(bam_path)
-        bam_groups[normalized_name].append(bam_path)
-
-    logging.info(f"Created BAM mapping with {len(bam_groups)} unique sample entries.")
-    return dict(bam_groups)
-
-
-def categorize_bam_files(bam_files: List[Path]) -> Tuple[List[str], List[str]]:
-    """
-    Categorize BAM files into HiFi and fail reads based on filename patterns.
-
-    Args:
-        bam_files: List of BAM file paths
-
-    Returns:
-        Tuple containing (hifi_reads, fail_reads) as lists of absolute path strings
-    """
-    hifi_reads = []
-    fail_reads = []
-
-    for bam_path in bam_files:
-        abs_path = str(bam_path.resolve())
-        if FAIL_PATTERN.search(bam_path.name):
-            fail_reads.append(abs_path)
-        else:
-            hifi_reads.append(abs_path)
-
-    return hifi_reads, fail_reads
+from typing import List, Dict, Tuple
+from utils import categorize_bam_files, find_bam_files, group_bam_files
 
 
 def fill_template_chunk(
@@ -126,16 +26,6 @@ def fill_template_chunk(
 ) -> Tuple[dict, int]:
     """
     Fill template JSON with BAM file information for a single chunk.
-
-    Args:
-        template_path: Path to the JSON template file
-        sample_sheet: Path to the sample sheet CSV file
-        bam_groups: Dictionary mapping sample names to BAM file lists
-        max_files: Maximum number of BAM files per chunk
-        start_sample_idx: Starting sample index for this chunk
-
-    Returns:
-        Tuple containing (filled_template_dict, next_sample_index)
     """
     logging.debug(f"Filling template chunk starting at sample index {start_sample_idx}")
 
@@ -177,10 +67,6 @@ def fill_template_chunk(
 def validate_chunk_size(template: dict, chunk_number: int) -> None:
     """
     Validate that the chunk size is reasonable and log warnings if needed.
-
-    Args:
-        template: Filled template dictionary
-        chunk_number: Current chunk number for logging
     """
     total_files = len(template.get("ptcp.hifi_reads", [])) + len(
         template.get("ptcp.fail_reads", [])
@@ -205,12 +91,6 @@ def process_chunks(
     Process all samples in chunks and output JSON to stdout.
 
     The reason to do this is that with certain WDL back-ends you may have to many files to bind, this is a way to constrain this
-
-    Args:
-        template_path: Path to the JSON template file
-        sample_sheet: Path to the sample sheet CSV file
-        bam_groups: Dictionary mapping sample names to BAM file lists
-        max_files: Maximum number of BAM files per chunk
     """
     total_samples = len(bam_groups)
     current_sample_idx = 0
@@ -266,12 +146,6 @@ def process_chunks(
 def validate_arguments(args: argparse.Namespace) -> None:
     """
     Validate command line arguments.
-
-    Args:
-        args: Parsed command line arguments
-
-    Raises:
-        SystemExit: If validation fails
     """
     if not args.data.exists():
         logging.error(f"Data directory does not exist: {args.data}")
@@ -357,7 +231,9 @@ Examples:
 
     logging.info(f"Found {len(bam_files)} BAM files in {args.data}")
 
+    logging.info("Processing %d BAM files.", len(bam_files))
     bam_groups = group_bam_files(bam_files)
+    logging.info("Created BAM mapping with %d unique sample entries.", len(bam_groups))
     if not bam_groups:
         logging.warning("No valid samples found after filtering")
         sys.exit(0)

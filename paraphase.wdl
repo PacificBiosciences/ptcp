@@ -164,11 +164,11 @@ task run_paraphase {
       label: "Annotation VCF"
     }
     threads: {
-      help: "Number of CPU threads to use (default: 8)",
+      help: "Number of CPU threads to use (default: 4)",
       label: "CPU threads"
     }
     mem_gb: {
-      help: "Memory allocation in gigabytes (default: 16)",
+      help: "Memory allocation in gigabytes (default: 8)",
       label: "Memory (GB)"
     }
   }

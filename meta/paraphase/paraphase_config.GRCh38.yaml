@@ -32,7 +32,7 @@ smn1:
   del1_5p_pos2: 70921260
 gba:
   genes: GBA1
-  realign_region: chr1:155234346-155241719
+  realign_region: chr1:155234345-155241719
   extract_regions: chr1:155211380-155222775 chr1:155232826-155244265
   gene2_region: chr1:155213719-155219505
   check_nm: 0.2
@@ -68,8 +68,8 @@ f8inv1:
   clip_5p_positions: [155006103]
   clip_3p_positions: [155007155]
 rpgr:
-  realign_region: chrX:38283684-38288761
-  extract_regions: chrX:38283684-38288761
+  realign_region: chrX:38283684-38288763
+  extract_regions: chrX:38282684-38289763
 hbb:
   realign_region: chr11:5224586-5229858
   extract_regions: chr11:5223587-5230858

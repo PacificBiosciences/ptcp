@@ -6,6 +6,8 @@ Search for a bam_id and return the row as JSON.
 Optionally return a specific value from the row.
 """
 
+__version__ = "1.0.0"
+
 import csv
 import json
 import sys
@@ -19,10 +21,21 @@ def parse_tsv(csv_file: str) -> Dict[str, Dict[str, str]]:
     bam_ids = set()
     with open(csv_file, "r") as csvfile:
         reader = csv.DictReader(csvfile)
+        fieldnames = set(reader.fieldnames or [])
+        required_columns = {"bam_id", "sex"}
+        missing = required_columns - fieldnames
+        if missing:
+            raise ValueError(
+                f"Missing required column(s): {', '.join(sorted(missing))}"
+            )
+        has_bam_name = "bam_name" in fieldnames
         for row in reader:
             if row["bam_id"] in bam_ids:
                 raise ValueError(f"Duplicate bam_id found: {row['bam_id']}")
             bam_ids.add(row["bam_id"])
+            if not has_bam_name or not row.get("bam_name"):
+                # Fallback so two-column sheets (bam_id, sex) remain compatible.
+                row["bam_name"] = row["bam_id"]
             data_dict[row["bam_id"]] = row
     return data_dict
 

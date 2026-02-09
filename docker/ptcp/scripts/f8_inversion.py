@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+
+__version__ = "1.0.0"
+
 import argparse
 import dataclasses
 import datetime
@@ -600,9 +603,7 @@ def run(args):
         inv22_call = dataclasses.replace(
             inv22_call,
             reads=inv22_reads,
-            spans=get_spans(
-                inv22_cfg.chromosome, list(inv22_reads.values())
-            ),
+            spans=get_spans(inv22_cfg.chromosome, list(inv22_reads.values())),
         )
         sample_call = {"f8inv1": asdict(inv1_call), "f8inv22": asdict(inv22_call)}
         with open(json_out, "w") as fout:
@@ -620,10 +621,13 @@ def main():
         configure_logging(args.verbose)
         return run(args)
     except ValueError as ve:
-        logging.error("Invalid input for BAM file %s: %s", bam_path or 'unknown', ve)
+        logging.error("Invalid input for BAM file %s: %s", bam_path or "unknown", ve)
         sys.exit(1)
     except Exception:
-        logging.exception("Unhandled exception while processing BAM file %s, aborting.", bam_path or 'unknown')
+        logging.exception(
+            "Unhandled exception while processing BAM file %s, aborting.",
+            bam_path or "unknown",
+        )
         sys.exit(2)
 
 
