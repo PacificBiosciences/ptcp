@@ -2,7 +2,7 @@
 
 The PacBio PureTarget Carrier Pipeline is a WDL-based workflow for genotyping tandem repeat regions and homologous genes with segmental duplications from PacBio PureTarget HiFi data. It uses a containerized toolchain for reproducibility on workstations and HPC clusters. By cloning this repository and setting up a virtual environment you can install PTCP and run it on your HPC.
 
-## Table of Contents
+## Table of contents
 
 1. [Install requirements in a virtual environment](#1-install-requirements-in-a-virtual-environment)
 2. [Set up the image of PTCP dependencies](#2-set-up-the-image-of-ptcp-dependencies)
@@ -81,7 +81,6 @@ miniwdl --version
 
 PTCP is a WDL workflow that relies on many software packages. These packages are containerized in an image for PTCP to use. Core tools inside the container: [TRGT](https://github.com/PacificBiosciences/trgt), [Paraphase](https://github.com/PacificBiosciences/paraphase), [Sawfish](https://github.com/PacificBiosciences/sawfish), [ptcp-qc](https://github.com/PacificBiosciences/ptcp-qc), [SMRT Link](https://www.pacb.com/smrt-link/)
 
-
 It can be invoked as a Docker container or a Singularity image file. Instructions for setting up both are shown below.
 
 ### 2.1. Docker image of PTCP dependencies
@@ -141,7 +140,7 @@ An example template of the input JSON is provided in this repository called [inp
 Optional inputs you may add to (or remove from) the template:
 
 - `ptcp.paraphase_annotation_vcf` (included in the repository template; omit this key to disable `havanno_json`)
-- `ptcp.pt_linear_regression` (enables SMN homology correction)
+- `ptcp.pt_linear_regression` (enables _SMN_ homology correction)
 - `ptcp.docker_smrttools` (defaults to `quay.io/pacbio/ptcp:X.Y`)
 
 Once you have your template updated, you can use it to create the input JSON with the `create_input_json.py` script like so:

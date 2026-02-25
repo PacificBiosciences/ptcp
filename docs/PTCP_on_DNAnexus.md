@@ -6,7 +6,7 @@ The PacBio PureTarget Carrier Pipeline is a WDL-based workflow designed to genot
 
 If you just want to try the pipeline, skip to [2.2 Setting up a PTCP workflow](#22-setting-up-a-ptcp-workflow), and you can try running the pipeline with example data that are already available on the platform.
 
-## Table of Contents
+## Table of contents
 
 1. [Transferring data to DNAnexus](#1-transferring-data-to-dnanexus)
     - 1.1. [Import from AWS S3](#11-transferring-data-from-your-s3-bucket-to-dnanexus)
